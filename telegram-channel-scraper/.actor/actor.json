@@ -1,0 +1,25 @@
+{
+  "$schema": "https://apify.com/schemas/v1/actor.ide.json",
+  "actorSpecification": 1,
+  "name": "telegram-channel-scraper",
+  "title": "Telegram Channel Scraper: Posts, Views, Reactions",
+  "description": "Pull the latest posts from any public Telegram channel in seconds: 100 posts in about 10 s, no login or API key. Each post includes text, views, reactions, date, media and link URLs, forwards and channel info (title, subscribers). Export JSON/CSV, call it via API or schedule daily monitoring.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "meta": {
+    "templateId": "python-start",
+    "generatedBy": "claude-code"
+  },
+  "inputSchema": "./input_schema.json",
+  "outputSchema": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
+  "dockerfile": "../Dockerfile",
+  "usesStandbyMode": false,
+  "defaultRunOptions": {
+    "build": "latest",
+    "memoryMbytes": 1024,
+    "timeoutSecs": 3600
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://apify.com/schemas/v1/actor.json",
+  "actorSpecification": 1,
+  "name": "google-play-app-reviews-scraper",
+  "title": "Google Play Reviews Scraper: Ratings & Metadata",
+  "description": "Newest public reviews and store metadata for any Android app by package ID, no login or Play Console. Apps: title, developer, rating, review count, downloads, content rating, screenshots. Reviews: stars, text, date, app version, developer reply. JSON/CSV, API or scheduled review monitoring.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "meta": {
+    "templateId": "python-start",
+    "generatedBy": "Codex with GPT-5"
+  },
+  "inputSchema": "./input_schema.json",
+  "outputSchema": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
+  "dockerfile": "../Dockerfile",
+  "usesStandbyMode": false,
+  "defaultRunOptions": {
+    "build": "latest",
+    "memoryMbytes": 1024,
+    "timeoutSecs": 3600
+  }
+}

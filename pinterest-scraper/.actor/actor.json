@@ -1,0 +1,25 @@
+{
+  "$schema": "https://apify.com/schemas/v1/actor.json",
+  "actorSpecification": 1,
+  "name": "pinterest-scraper",
+  "title": "Pinterest Scraper: Pins, Boards, Search & Videos",
+  "description": "Scrape Pinterest without login: up to 250 search results per request, plus boards, profiles and single pins. Every pin has original image URL, video URL, title, description, link and domain, save count, pinner and board; boards and profiles add follower and pin counts. JSON/CSV, API, schedules.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "meta": {
+    "templateId": "python-start",
+    "generatedBy": "Claude Code"
+  },
+  "inputSchema": "./input_schema.json",
+  "outputSchema": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
+  "dockerfile": "../Dockerfile",
+  "usesStandbyMode": false,
+  "defaultRunOptions": {
+    "build": "latest",
+    "memoryMbytes": 512,
+    "timeoutSecs": 3600
+  }
+}

@@ -1,0 +1,173 @@
+{
+    "$schema": "https://apify.com/schemas/v1/input.ide.json",
+    "title": "Google Trends Scraper input",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "keywords": {
+            "title": "Keywords",
+            "type": "array",
+            "editor": "stringList",
+            "prefill": [
+                "chatgpt",
+                "claude ai"
+            ],
+            "description": "Search terms to analyze. Each keyword is queried on its own (absolute 0-100 scale per keyword) unless *Compare keywords* is on."
+        },
+        "compareKeywords": {
+            "title": "Compare keywords",
+            "type": "boolean",
+            "default": false,
+            "description": "Compare keywords against each other like the Trends UI (groups of up to 5 share one 0-100 scale). Off = each keyword is scored independently."
+        },
+        "geo": {
+            "title": "Location",
+            "type": "string",
+            "editor": "textfield",
+            "default": "",
+            "prefill": "US",
+            "description": "Country code (`US`, `GB`, `DE`, `KR`...), region (`US-CA`) or empty for worldwide."
+        },
+        "timeframe": {
+            "title": "Timeframe",
+            "type": "string",
+            "editor": "textfield",
+            "default": "today 12-m",
+            "prefill": "today 12-m",
+            "description": "Google Trends time range: `now 1-H`, `now 4-H`, `now 1-d`, `now 7-d`, `today 1-m`, `today 3-m`, `today 12-m`, `today 5-y`, `all`, or a date range `2025-01-01 2025-06-30`."
+        },
+        "category": {
+            "title": "Category ID",
+            "type": "integer",
+            "default": 0,
+            "minimum": 0,
+            "description": "Google Trends category ID (0 = all categories). Find IDs in the URL of trends.google.com after choosing a category, e.g. 31 = Programming."
+        },
+        "searchType": {
+            "title": "Search type",
+            "type": "string",
+            "editor": "select",
+            "default": "web",
+            "enum": [
+                "web",
+                "images",
+                "news",
+                "youtube",
+                "froogle"
+            ],
+            "enumTitles": [
+                "Web search",
+                "Image search",
+                "News search",
+                "YouTube search",
+                "Google Shopping"
+            ],
+            "description": "Which Google property to measure."
+        },
+        "includeInterestOverTime": {
+            "title": "Interest over time",
+            "type": "boolean",
+            "default": true,
+            "description": "One row per date with the 0-100 interest value."
+        },
+        "includeInterestByRegion": {
+            "title": "Interest by region",
+            "type": "boolean",
+            "default": true,
+            "description": "One row per region/city with its 0-100 value."
+        },
+        "regionResolution": {
+            "title": "Region resolution",
+            "type": "string",
+            "editor": "select",
+            "default": "REGION",
+            "enum": [
+                "COUNTRY",
+                "REGION",
+                "CITY",
+                "DMA"
+            ],
+            "enumTitles": [
+                "Country (worldwide only)",
+                "Region / state",
+                "City",
+                "DMA (US metro)"
+            ],
+            "description": "Granularity of *Interest by region*. COUNTRY only works when Location is empty (worldwide)."
+        },
+        "includeLowVolumeRegions": {
+            "title": "Include low-volume regions",
+            "type": "boolean",
+            "default": false,
+            "description": "Also return regions with very little search volume."
+        },
+        "includeRelatedQueries": {
+            "title": "Related queries",
+            "type": "boolean",
+            "default": true,
+            "description": "Top and rising related searches (25 each)."
+        },
+        "includeRelatedTopics": {
+            "title": "Related topics",
+            "type": "boolean",
+            "default": false,
+            "description": "Top and rising related topics. Note: Google returns these only for signed-in sessions, so this is often empty."
+        },
+        "includeSuggestions": {
+            "title": "Autocomplete topics",
+            "type": "boolean",
+            "default": false,
+            "description": "Google's entity suggestions for each keyword (mid, title, type)."
+        },
+        "trendingNow": {
+            "title": "Trending Now list",
+            "type": "boolean",
+            "default": false,
+            "sectionCaption": "Trending Now",
+            "description": "Also scrape the live *Trending now* list (no keywords needed)."
+        },
+        "trendingGeo": {
+            "title": "Trending location",
+            "type": "string",
+            "editor": "textfield",
+            "default": "US",
+            "description": "Country code for Trending Now."
+        },
+        "trendingHours": {
+            "title": "Trending window (hours)",
+            "type": "integer",
+            "editor": "number",
+            "default": 24,
+            "description": "Time window for Trending Now in hours: 4, 24, 48 or 168.",
+            "minimum": 1,
+            "maximum": 168
+        },
+        "trendingActiveOnly": {
+            "title": "Only active trends",
+            "type": "boolean",
+            "default": false,
+            "description": "Skip trends that have already ended."
+        },
+        "language": {
+            "title": "Language",
+            "type": "string",
+            "editor": "textfield",
+            "default": "en-US",
+            "description": "UI language for names and categories, e.g. `en-US`, `ko`, `de`.",
+            "sectionCaption": "Advanced"
+        },
+        "proxyConfiguration": {
+            "title": "Proxy configuration",
+            "type": "object",
+            "editor": "proxy",
+            "default": {
+                "useApifyProxy": true
+            },
+            "prefill": {
+                "useApifyProxy": true
+            },
+            "description": "Google Trends rate-limits IPs aggressively. Apify Proxy is enabled by default; keep it on."
+        }
+    },
+    "required": []
+}

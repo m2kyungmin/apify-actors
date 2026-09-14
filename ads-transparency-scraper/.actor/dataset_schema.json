@@ -1,0 +1,31 @@
+{
+    "$schema": "https://apify.com/schemas/v1/dataset.ide.json",
+    "actorSpecification": 1,
+    "title": "Google Ads Transparency results",
+    "fields": {},
+    "views": {
+        "ads": {
+            "title": "Ads",
+            "description": "One row per ad (creative) or advertiser",
+            "transformation": {
+                "fields": ["type", "advertiserName", "advertiserId", "creativeId", "format", "firstShown", "lastShown", "daysShown", "adText", "imageUrl", "url"]
+            },
+            "display": {
+                "component": "table",
+                "properties": {
+                    "type": { "label": "Type", "format": "text" },
+                    "advertiserName": { "label": "Advertiser", "format": "text" },
+                    "advertiserId": { "label": "Advertiser ID", "format": "text" },
+                    "creativeId": { "label": "Creative ID", "format": "text" },
+                    "format": { "label": "Format", "format": "text" },
+                    "firstShown": { "label": "First shown", "format": "date" },
+                    "lastShown": { "label": "Last shown", "format": "date" },
+                    "daysShown": { "label": "Days", "format": "number" },
+                    "adText": { "label": "Ad text", "format": "text" },
+                    "imageUrl": { "label": "Image", "format": "image" },
+                    "url": { "label": "URL", "format": "link" }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://apify.com/schemas/v1/dataset.ide.json",
+  "actorSpecification": 1,
+  "title": "AI search visibility audit results",
+  "fields": {},
+  "views": {
+    "results": {
+      "title": "Prompt results",
+      "transformation": {"fields": ["type", "engine", "category", "prompt", "brandMentioned", "brandCited", "competitorsMentioned", "citedDomains", "mode"]},
+      "display": {"component": "table", "properties": {"type": {"label": "Type", "format": "text"}, "engine": {"label": "Engine", "format": "text"}, "category": {"label": "Category", "format": "text"}, "prompt": {"label": "Prompt", "format": "text"}, "brandMentioned": {"label": "Brand mentioned", "format": "boolean"}, "brandCited": {"label": "Brand site cited", "format": "boolean"}, "competitorsMentioned": {"label": "Competitors", "format": "array"}, "citedDomains": {"label": "Cited domains", "format": "array"}, "mode": {"label": "Mode", "format": "text"}}}
+    }
+  }
+}

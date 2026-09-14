@@ -1,0 +1,81 @@
+{
+    "$schema": "https://apify.com/schemas/v1/dataset.ide.json",
+    "actorSpecification": 1,
+    "title": "Google Trends data",
+    "fields": {},
+    "views": {
+        "rows": {
+            "title": "Rows",
+            "description": "One row per data point",
+            "transformation": {
+                "fields": [
+                    "type",
+                    "keyword",
+                    "geo",
+                    "date",
+                    "geoName",
+                    "query",
+                    "title",
+                    "value",
+                    "formattedValue",
+                    "searchVolume",
+                    "increasePct",
+                    "timeframe"
+                ]
+            },
+            "display": {
+                "component": "table",
+                "properties": {
+                    "type": {
+                        "label": "Type",
+                        "format": "text"
+                    },
+                    "keyword": {
+                        "label": "Keyword",
+                        "format": "text"
+                    },
+                    "geo": {
+                        "label": "Geo",
+                        "format": "text"
+                    },
+                    "date": {
+                        "label": "Date",
+                        "format": "date"
+                    },
+                    "geoName": {
+                        "label": "Region",
+                        "format": "text"
+                    },
+                    "query": {
+                        "label": "Related query",
+                        "format": "text"
+                    },
+                    "title": {
+                        "label": "Trend / topic",
+                        "format": "text"
+                    },
+                    "value": {
+                        "label": "Value",
+                        "format": "number"
+                    },
+                    "formattedValue": {
+                        "label": "Change",
+                        "format": "text"
+                    },
+                    "searchVolume": {
+                        "label": "Searches",
+                        "format": "number"
+                    },
+                    "increasePct": {
+                        "label": "Increase %",
+                        "format": "number"
+                    },
+                    "timeframe": {
+                        "label": "Timeframe",
+                        "format": "text"
+                    }
+                }
+            }
+        }
+    }
+}

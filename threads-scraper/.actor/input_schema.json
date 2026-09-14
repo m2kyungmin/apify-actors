@@ -1,0 +1,60 @@
+{
+  "$schema": "https://apify.com/schemas/v1/input.ide.json",
+  "title": "Threads Scraper input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "profiles": {
+      "title": "Profiles",
+      "type": "array",
+      "editor": "stringList",
+      "prefill": ["@zuck"],
+      "description": "Threads profiles to scrape, one per line, as @handle or profile URL (https://www.threads.com/@zuck). Each profile yields one profile record plus up to 'Maximum posts per profile' of its newest posts."
+    },
+    "maxPostsPerProfile": {
+      "title": "Maximum posts per profile",
+      "type": "integer",
+      "default": 50,
+      "prefill": 20,
+      "minimum": 1,
+      "maximum": 2000,
+      "description": "How many of the newest posts to collect from each profile (the Actor paginates automatically)."
+    },
+    "postUrls": {
+      "title": "Post URLs",
+      "type": "array",
+      "editor": "stringList",
+      "prefill": [],
+      "description": "Individual Threads post URLs (https://www.threads.com/@user/post/CODE), one per line. Each yields the post itself and, optionally, its replies."
+    },
+    "includeReplies": {
+      "title": "Include replies for post URLs",
+      "type": "boolean",
+      "default": true,
+      "prefill": true,
+      "description": "For each post URL, also save the reply posts shown on the post page (about 20 top replies, logged-out view). Each reply is a separate post record."
+    },
+    "searchQueries": {
+      "title": "Search queries",
+      "type": "array",
+      "editor": "stringList",
+      "prefill": [],
+      "description": "Keywords to search on Threads, one per line. Each query returns the first page of results (about 20 posts) that Threads shows to visitors without an account."
+    },
+    "proxyConfiguration": {
+      "title": "Proxy configuration",
+      "type": "object",
+      "editor": "proxy",
+      "default": {"useApifyProxy": true},
+      "prefill": {"useApifyProxy": true},
+      "description": "Apify Proxy settings. Enabled by default; the Actor rotates the proxy session every 15 requests."
+    },
+    "profilePostsDocId": {
+      "title": "Advanced: GraphQL doc_id for profile pagination",
+      "type": "string",
+      "editor": "textfield",
+      "default": "28150103917987977",
+      "description": "Only change this if profile pagination stops working after a Threads web update. The value is the doc_id of Threads' BarcelonaProfileThreadsTabRefetchableDirectQuery for logged-out visitors."
+    }
+  }
+}

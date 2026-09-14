@@ -1,0 +1,40 @@
+{
+  "$schema": "https://apify.com/schemas/v1/dataset.ide.json",
+  "actorSpecification": 1,
+  "title": "LinkedIn jobs",
+  "fields": {},
+  "views": {
+    "jobs": {
+      "title": "Jobs",
+      "transformation": {
+        "fields": [
+          "jobId", "title", "companyName", "location", "postedDate", "postedTime",
+          "employmentType", "seniorityLevel", "jobFunction", "industries", "applicantCount",
+          "salary", "descriptionText", "url", "companyUrl", "companyLogoUrl", "scrapedAt"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "jobId": {"label": "Job ID", "format": "text"},
+          "title": {"label": "Title", "format": "text"},
+          "companyName": {"label": "Company", "format": "text"},
+          "location": {"label": "Location", "format": "text"},
+          "postedDate": {"label": "Posted", "format": "date"},
+          "postedTime": {"label": "Posted ago", "format": "text"},
+          "employmentType": {"label": "Employment", "format": "text"},
+          "seniorityLevel": {"label": "Seniority", "format": "text"},
+          "jobFunction": {"label": "Function", "format": "text"},
+          "industries": {"label": "Industry", "format": "text"},
+          "applicantCount": {"label": "Applicants", "format": "number"},
+          "salary": {"label": "Salary", "format": "text"},
+          "descriptionText": {"label": "Description", "format": "text"},
+          "url": {"label": "Job", "format": "link"},
+          "companyUrl": {"label": "Company URL", "format": "link"},
+          "companyLogoUrl": {"label": "Logo", "format": "image"},
+          "scrapedAt": {"label": "Scraped at", "format": "date"}
+        }
+      }
+    }
+  }
+}

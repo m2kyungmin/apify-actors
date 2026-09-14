@@ -1,0 +1,25 @@
+{
+  "$schema": "https://apify.com/schemas/v1/actor.json",
+  "actorSpecification": 1,
+  "name": "threads-scraper",
+  "title": "Threads Scraper: Profiles, Posts, Replies & Search",
+  "description": "Scrape Threads without an account: profile feeds with pagination, single posts with top replies and keyword search, about 15 posts per second. Posts include text, image and MP4 URLs, like/reply/repost/quote counts, link previews, dates and author; profiles add bio and followers. JSON/CSV, API.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "meta": {
+    "templateId": "python-start",
+    "generatedBy": "Claude Code"
+  },
+  "inputSchema": "./input_schema.json",
+  "outputSchema": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
+  "dockerfile": "../Dockerfile",
+  "defaultRunOptions": {
+    "build": "latest",
+    "memoryMbytes": 512,
+    "timeoutSecs": 3600
+  },
+  "usesStandbyMode": false
+}

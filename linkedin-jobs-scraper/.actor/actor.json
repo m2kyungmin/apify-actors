@@ -1,0 +1,25 @@
+{
+  "$schema": "https://apify.com/schemas/v1/actor.ide.json",
+  "actorSpecification": 1,
+  "name": "linkedin-jobs-scraper",
+  "title": "LinkedIn Jobs Scraper: Full Descriptions, No Login",
+  "description": "Search public LinkedIn jobs by keyword and location with full descriptions, no cookies or login: 25 jobs in about 30 s. Fields: title, company, location, workplace type, seniority, posted date, applicants, description, apply URL; date/remote/experience filters. JSON/CSV, API, daily alerts.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "meta": {
+    "templateId": "python-start",
+    "generatedBy": "Codex with GPT-5"
+  },
+  "inputSchema": "./input_schema.json",
+  "outputSchema": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
+  "dockerfile": "../Dockerfile",
+  "usesStandbyMode": false,
+  "defaultRunOptions": {
+    "build": "latest",
+    "memoryMbytes": 1024,
+    "timeoutSecs": 3600
+  }
+}

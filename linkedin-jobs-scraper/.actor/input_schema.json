@@ -1,0 +1,112 @@
+{
+  "$schema": "https://apify.com/schemas/v1/input.ide.json",
+  "title": "LinkedIn Jobs Scraper input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "keywords": {
+      "title": "Keywords",
+      "type": "string",
+      "editor": "textfield",
+      "prefill": "software engineer",
+      "description": "Job title, skill, or other keywords to search for, such as `software engineer` or `Python developer`."
+    },
+    "location": {
+      "title": "Location",
+      "type": "string",
+      "editor": "textfield",
+      "default": "United States",
+      "prefill": "United States",
+      "description": "City, region, or country used by LinkedIn search, such as `New York, NY`, `Germany`, or `South Korea`."
+    },
+    "maxItems": {
+      "title": "Maximum jobs",
+      "type": "integer",
+      "default": 25,
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "Maximum number of unique job postings to save. The pay-per-event spending limit can reduce this number."
+    },
+    "datePosted": {
+      "title": "Date posted",
+      "type": "string",
+      "editor": "select",
+      "default": "anyTime",
+      "enum": ["anyTime", "past24Hours", "pastWeek", "pastMonth"],
+      "enumTitles": ["Any time", "Past 24 hours", "Past week", "Past month"],
+      "description": "Only include jobs posted within the selected time range."
+    },
+    "sortBy": {
+      "title": "Sort by",
+      "type": "string",
+      "editor": "select",
+      "default": "relevance",
+      "enum": ["relevance", "mostRecent"],
+      "enumTitles": ["Most relevant", "Most recent"],
+      "description": "Order LinkedIn search results by relevance or recency."
+    },
+    "jobTypes": {
+      "title": "Job types",
+      "type": "array",
+      "editor": "select",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": ["fullTime", "partTime", "contract", "temporary", "volunteer", "internship", "other"],
+        "enumTitles": ["Full-time", "Part-time", "Contract", "Temporary", "Volunteer", "Internship", "Other"]
+      },
+      "description": "Optional employment-type filters. Leave empty to include every job type."
+    },
+    "experienceLevels": {
+      "title": "Experience levels",
+      "type": "array",
+      "editor": "select",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": ["internship", "entryLevel", "associate", "midSenior", "director", "executive"],
+        "enumTitles": ["Internship", "Entry level", "Associate", "Mid-Senior level", "Director", "Executive"]
+      },
+      "description": "Optional seniority filters. Leave empty to include all experience levels."
+    },
+    "workplaceTypes": {
+      "title": "Workplace types",
+      "type": "array",
+      "editor": "select",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": ["onSite", "remote", "hybrid"],
+        "enumTitles": ["On-site", "Remote", "Hybrid"]
+      },
+      "description": "Optional workplace filters for on-site, remote, and hybrid jobs."
+    },
+    "easyApplyOnly": {
+      "title": "Easy Apply only",
+      "type": "boolean",
+      "default": false,
+      "description": "Return only postings marked with LinkedIn Easy Apply."
+    },
+    "includeDescription": {
+      "title": "Include full job descriptions",
+      "type": "boolean",
+      "default": true,
+      "description": "Fetch each public job page to include the description, applicant count, seniority, employment type, job function, and industry."
+    },
+    "includeDescriptionHtml": {
+      "title": "Include description HTML",
+      "type": "boolean",
+      "default": false,
+      "description": "Include the source description HTML alongside plain text. This only applies when full descriptions are enabled."
+    },
+    "proxyConfiguration": {
+      "title": "Proxy configuration",
+      "type": "object",
+      "editor": "proxy",
+      "default": {"useApifyProxy": false},
+      "prefill": {"useApifyProxy": false},
+      "description": "Optional proxy settings. Public guest pages normally work from Apify data-center IPs; enable a proxy if LinkedIn rate-limits a larger run."
+    }
+  },
+  "required": ["keywords"]
+}

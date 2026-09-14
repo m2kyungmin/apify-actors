@@ -1,0 +1,9 @@
+{
+  "$schema": "https://apify.com/schemas/v1/output.ide.json",
+  "actorOutputSchemaVersion": 1,
+  "title": "Output schema",
+  "properties": {
+    "report": {"type": "string", "title": "HTML report", "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/REPORT.html"},
+    "results": {"type": "string", "title": "Audit summary and per-prompt results", "template": "{{links.apiDefaultDatasetUrl}}/items"}
+  }
+}

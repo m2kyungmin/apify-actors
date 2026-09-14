@@ -1,0 +1,25 @@
+{
+  "$schema": "https://apify.com/schemas/v1/actor.json",
+  "actorSpecification": 1,
+  "name": "ai-search-visibility-audit",
+  "title": "AI Search Visibility Audit: ChatGPT & Perplexity",
+  "description": "Measure how often ChatGPT, Perplexity and Gemini recommend your brand: the Actor reads your site, writes 30 buyer-intent questions and samples each engine several times. HTML report with mention and citation rates (95% CI), competitor share of voice, cited sources and every sentence about you.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "meta": {
+    "templateId": "python-start",
+    "generatedBy": "Claude Code"
+  },
+  "inputSchema": "./input_schema.json",
+  "outputSchema": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
+  "dockerfile": "../Dockerfile",
+  "defaultRunOptions": {
+    "build": "latest",
+    "memoryMbytes": 512,
+    "timeoutSecs": 3600
+  },
+  "usesStandbyMode": false
+}

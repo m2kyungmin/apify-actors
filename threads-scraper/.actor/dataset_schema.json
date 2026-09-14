@@ -1,0 +1,13 @@
+{
+  "$schema": "https://apify.com/schemas/v1/dataset.ide.json",
+  "actorSpecification": 1,
+  "title": "Public Threads posts and profiles",
+  "fields": {},
+  "views": {
+    "posts": {
+      "title": "Posts",
+      "transformation": {"fields": ["type", "authorUsername", "text", "likeCount", "replyCount", "repostCount", "quoteCount", "mediaType", "createdAt", "url", "source", "scrapedAt"]},
+      "display": {"component": "table", "properties": {"type": {"label": "Type", "format": "text"}, "authorUsername": {"label": "Author", "format": "text"}, "text": {"label": "Text", "format": "text"}, "likeCount": {"label": "Likes", "format": "number"}, "replyCount": {"label": "Replies", "format": "number"}, "repostCount": {"label": "Reposts", "format": "number"}, "quoteCount": {"label": "Quotes", "format": "number"}, "mediaType": {"label": "Media", "format": "text"}, "createdAt": {"label": "Posted", "format": "date"}, "url": {"label": "URL", "format": "link"}, "source": {"label": "Source", "format": "text"}, "scrapedAt": {"label": "Scraped at", "format": "date"}}}
+    }
+  }
+}

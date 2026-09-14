@@ -1,0 +1,71 @@
+{
+    "$schema": "https://apify.com/schemas/v1/dataset.ide.json",
+    "actorSpecification": 1,
+    "title": "Telegram channel posts",
+    "fields": {},
+    "views": {
+        "posts": {
+            "title": "Posts",
+            "description": "One row per Telegram post",
+            "transformation": {
+                "fields": [
+                    "type",
+                    "channel",
+                    "postId",
+                    "date",
+                    "text",
+                    "views",
+                    "reactionsTotal",
+                    "imageUrls",
+                    "videoUrls",
+                    "url"
+                ]
+            },
+            "display": {
+                "component": "table",
+                "properties": {
+                    "type": {
+                        "label": "Type",
+                        "format": "text"
+                    },
+                    "channel": {
+                        "label": "Channel",
+                        "format": "text"
+                    },
+                    "postId": {
+                        "label": "Post ID",
+                        "format": "number"
+                    },
+                    "date": {
+                        "label": "Date",
+                        "format": "date"
+                    },
+                    "text": {
+                        "label": "Text",
+                        "format": "text"
+                    },
+                    "views": {
+                        "label": "Views",
+                        "format": "number"
+                    },
+                    "reactionsTotal": {
+                        "label": "Reactions",
+                        "format": "number"
+                    },
+                    "imageUrls": {
+                        "label": "Images",
+                        "format": "array"
+                    },
+                    "videoUrls": {
+                        "label": "Videos",
+                        "format": "array"
+                    },
+                    "url": {
+                        "label": "URL",
+                        "format": "link"
+                    }
+                }
+            }
+        }
+    }
+}

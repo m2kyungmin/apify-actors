@@ -1,0 +1,39 @@
+{
+  "$schema": "https://apify.com/schemas/v1/input.ide.json",
+  "title": "TikTok Profile & Video Scraper input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "usernames": {
+      "title": "TikTok usernames",
+      "type": "array",
+      "editor": "stringList",
+      "prefill": ["tiktok"],
+      "description": "Public TikTok usernames to collect, with or without the @ symbol. Each produces one profile result with public bio and statistics."
+    },
+    "videoUrls": {
+      "title": "Public TikTok video URLs",
+      "type": "array",
+      "editor": "stringList",
+      "prefill": ["https://www.tiktok.com/@scout2015/video/6718335390845095173"],
+      "description": "Optional public TikTok video URLs in the form https://www.tiktok.com/@user/video/id. Each produces one video result with public engagement statistics."
+    },
+    "maxItems": {
+      "title": "Maximum results",
+      "type": "integer",
+      "default": 20,
+      "minimum": 1,
+      "maximum": 100,
+      "description": "Maximum number of successful profile or video results to save. The Actor charge limit can lower this value."
+    },
+    "proxyConfiguration": {
+      "title": "Proxy configuration",
+      "type": "object",
+      "editor": "proxy",
+      "default": {"useApifyProxy": false},
+      "prefill": {"useApifyProxy": false},
+      "description": "Optional proxy settings. Public pages currently work from Apify data-center IPs; enable a proxy if TikTok serves a WAF challenge."
+    }
+  },
+  "required": []
+}
