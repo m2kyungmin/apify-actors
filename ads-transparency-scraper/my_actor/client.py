@@ -81,12 +81,16 @@ class AdsTransparency:
         self._client: AsyncClient | None = None
         self._last = 0.0
         self._calls_on_ip = 0
+        # True while we bypass the proxy because Google is bouncing the whole proxy pool.
+        self._direct = False
         # Google starts serving a CAPTCHA wall after roughly 20 cookieless RPC calls from one IP,
         # so with a rotating proxy we switch IPs well before that.
         self.rotate_every = 8
 
     async def _new_client(self) -> AsyncClient:
-        proxy = await self.proxy_url_factory() if self.proxy_url_factory else None
+        proxy = None
+        if self.proxy_url_factory and not self._direct:
+            proxy = await self.proxy_url_factory()
         return AsyncClient(headers=HEADERS, timeout=30, follow_redirects=False, proxy=proxy)
 
     async def __aenter__(self) -> 'AdsTransparency':
@@ -97,7 +101,9 @@ class AdsTransparency:
         if self._client:
             await self._client.aclose()
 
-    async def _rotate(self) -> None:
+    async def _rotate(self, *, direct: bool | None = None) -> None:
+        if direct is not None:
+            self._direct = direct
         if self._client:
             await self._client.aclose()
         self._client = await self._new_client()
@@ -110,7 +116,8 @@ class AdsTransparency:
         loop = asyncio.get_event_loop()
         for attempt in range(1, retries + 1):
             if self.proxy_url_factory and self._calls_on_ip >= self.rotate_every:
-                await self._rotate()
+                # Also returns to the proxy after a direct stretch, so one IP is never overused.
+                await self._rotate(direct=False)
             wait = self.min_delay - (loop.time() - self._last)
             if wait > 0:
                 await asyncio.sleep(wait + random.random() * 0.3)
@@ -135,12 +142,21 @@ class AdsTransparency:
                 if self.log:
                     self.log.warning(f'{method}: blocked (HTTP {r.status_code}), attempt {attempt}/{retries}')
                 if self.proxy_url_factory:
-                    await self._rotate()
+                    if attempt >= 2 and not self._direct:
+                        # Google sometimes bounces the whole shared proxy pool for an hour or more
+                        # while the container's own egress IP is still fine - try that next.
+                        if self.log:
+                            self.log.info(f'{method}: proxy pool blocked, retrying over a direct connection')
+                        await self._rotate(direct=True)
+                        continue
+                    await self._rotate(direct=False)
                 await asyncio.sleep(delay)
                 delay *= 2
                 continue
             raise RuntimeError(f'{method}: HTTP {r.status_code} {r.text[:160]}')
-        raise Blocked(f'{method}: still blocked after {retries} attempts - enable Apify Proxy in the input')
+        hint = ('Google is bouncing both the Apify Proxy pool and the direct connection right now - retry in an hour'
+                if self.proxy_url_factory else 'enable Apify Proxy in the input')
+        raise Blocked(f'{method}: still blocked after {retries} attempts - {hint}')
 
     # -- advertisers ------------------------------------------------------------------
     async def search(self, query: str, max_advertisers: int = 10) -> tuple[list[dict], list[str]]:
