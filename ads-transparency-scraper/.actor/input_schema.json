@@ -1,0 +1,144 @@
+{
+    "$schema": "https://apify.com/schemas/v1/input.ide.json",
+    "title": "Google Ads Transparency Center Scraper input",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "searchQueries": {
+            "title": "Advertiser names or domains to search",
+            "type": "array",
+            "description": "Free-text searches, exactly like the search box on adstransparency.google.com. Brand names (`Nike`) or domains (`nike.com`). The best-matching advertisers are scraped (see *Max advertisers per query*).",
+            "editor": "stringList",
+            "prefill": [
+                "Shopify"
+            ]
+        },
+        "advertiserIds": {
+            "title": "Advertiser IDs",
+            "type": "array",
+            "description": "Advertiser IDs starting with `AR` (from Ads Transparency URLs like `/advertiser/AR12345678901234567890`). Scraped in addition to search results.",
+            "editor": "stringList"
+        },
+        "advertiserUrls": {
+            "title": "Advertiser or creative URLs",
+            "type": "array",
+            "description": "Full URLs copied from adstransparency.google.com, e.g. `https://adstransparency.google.com/advertiser/AR.../?region=US`.",
+            "editor": "stringList"
+        },
+        "domains": {
+            "title": "Domains (all advertisers)",
+            "type": "array",
+            "description": "Website domains, e.g. `nike.com`. Returns ads from ANY advertiser that link to this domain (Google's 'search by website' view). Uses *Max ads per advertiser* as the limit per domain.",
+            "editor": "stringList"
+        },
+        "maxAdvertisersPerQuery": {
+            "title": "Max advertisers per query",
+            "type": "integer",
+            "description": "How many matching advertisers to scrape for each search query (best matches first).",
+            "default": 1,
+            "minimum": 1,
+            "maximum": 20
+        },
+        "maxAdsPerAdvertiser": {
+            "title": "Max ads per advertiser",
+            "type": "integer",
+            "description": "Maximum number of ads (creatives) to collect per advertiser, newest first. 40 ads per page.",
+            "default": 100,
+            "prefill": 50,
+            "minimum": 1,
+            "maximum": 100000,
+            "unit": "ads"
+        },
+        "format": {
+            "title": "Ad format",
+            "type": "string",
+            "description": "Only return ads of this format.",
+            "editor": "select",
+            "enum": [
+                "ALL",
+                "TEXT",
+                "IMAGE",
+                "VIDEO"
+            ],
+            "enumTitles": [
+                "All formats",
+                "Text",
+                "Image",
+                "Video"
+            ],
+            "default": "ALL"
+        },
+        "regions": {
+            "title": "Regions (country codes)",
+            "type": "array",
+            "description": "Only ads shown in these countries, as ISO 3166-1 alpha-2 codes (`US`, `GB`, `DE`, `KR`...). Empty = anywhere.",
+            "editor": "stringList"
+        },
+        "startDate": {
+            "title": "Shown after",
+            "type": "string",
+            "description": "Only ads shown on or after this date (`YYYY-MM-DD`).",
+            "editor": "datepicker",
+            "nullable": true
+        },
+        "endDate": {
+            "title": "Shown before",
+            "type": "string",
+            "description": "Only ads shown on or before this date (`YYYY-MM-DD`).",
+            "editor": "datepicker",
+            "nullable": true
+        },
+        "topic": {
+            "title": "Topic",
+            "type": "string",
+            "description": "`POLITICAL` restricts to election/political ads (where Google provides that view).",
+            "editor": "select",
+            "enum": [
+                "ALL",
+                "POLITICAL"
+            ],
+            "enumTitles": [
+                "All ads",
+                "Political ads only"
+            ],
+            "default": "ALL"
+        },
+        "includeAdText": {
+            "title": "Extract ad copy (text, links, images)",
+            "type": "boolean",
+            "description": "Extract the ad copy for each ad. Text ads are published by Google only as screenshots, so their text is read with OCR (see next option); video ads yield the YouTube video ID and thumbnail. One or two extra requests per ad, charged as a separate event only when something is extracted.",
+            "default": true
+        },
+        "ocrAdText": {
+            "title": "OCR screenshot ads",
+            "type": "boolean",
+            "description": "Read the text of ads that Google publishes only as rendered screenshots (most Search text ads) with Tesseract OCR. Adds ~1 s per ad.",
+            "default": true
+        },
+        "includeAdvertiserInfo": {
+            "title": "Include advertiser profile items",
+            "type": "boolean",
+            "description": "Push one `type: \"advertiser\"` item per advertiser with name, ID, legal name, region and approximate ad count.",
+            "default": true
+        },
+        "proxyConfiguration": {
+            "title": "Proxy configuration",
+            "type": "object",
+            "description": "Google shows a CAPTCHA wall after ~20 requests from one IP, so Apify Proxy (rotating datacenter IPs) is enabled by default. Keep it on unless you run very small jobs.",
+            "editor": "proxy",
+            "prefill": {
+                "useApifyProxy": true
+            },
+            "default": {
+                "useApifyProxy": true
+            }
+        },
+        "debug": {
+            "title": "Debug logging",
+            "type": "boolean",
+            "description": "Log raw responses for troubleshooting. Leave off.",
+            "default": false,
+            "sectionCaption": "Advanced"
+        }
+    }
+}

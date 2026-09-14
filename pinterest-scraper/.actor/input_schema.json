@@ -1,0 +1,66 @@
+{
+  "$schema": "https://apify.com/schemas/v1/input.ide.json",
+  "title": "Pinterest Scraper input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "searchQueries": {
+      "title": "Search queries",
+      "type": "array",
+      "editor": "stringList",
+      "prefill": ["modern kitchen design"],
+      "description": "Keywords to search on Pinterest, one per line. Each query returns up to 'Maximum pins per source' public pins (or boards/profiles when the search scope is changed)."
+    },
+    "searchScope": {
+      "title": "Search scope",
+      "type": "string",
+      "editor": "select",
+      "default": "pins",
+      "prefill": "pins",
+      "enum": ["pins", "videos", "boards", "users"],
+      "enumTitles": ["Pins (all)", "Video pins only", "Boards", "Profiles (users)"],
+      "description": "What kind of Pinterest search results to collect for the search queries. 'Pins' and 'Video pins' produce pin records; 'Boards' produces board records; 'Profiles' produces profile records."
+    },
+    "startUrls": {
+      "title": "Pin, board, profile or search URLs",
+      "type": "array",
+      "editor": "stringList",
+      "prefill": [],
+      "description": "Public Pinterest URLs, one per line. Supported: pin pages (https://www.pinterest.com/pin/123456/), boards (https://www.pinterest.com/username/board-slug/), profiles (https://www.pinterest.com/username/), search pages (https://www.pinterest.com/search/pins/?q=keyword) and pin.it short links. Boards and profiles return their metadata plus up to 'Maximum pins per source' pins."
+    },
+    "maxPinsPerSource": {
+      "title": "Maximum pins per source",
+      "type": "integer",
+      "default": 50,
+      "prefill": 30,
+      "minimum": 1,
+      "maximum": 5000,
+      "description": "Maximum number of pins (or boards/profiles for those search scopes) collected from each search query, board or profile. A single pin URL always yields one record."
+    },
+    "profilePins": {
+      "title": "Which profile pins to collect",
+      "type": "string",
+      "editor": "select",
+      "default": "created",
+      "prefill": "created",
+      "enum": ["created", "saved", "none"],
+      "enumTitles": ["Pins created by the profile", "Pins saved by the profile", "Profile metadata only"],
+      "description": "For profile URLs: collect the pins the user created, the pins they saved to public boards, or only the profile record."
+    },
+    "fetchPinDetails": {
+      "title": "Fetch full pin details (save count, hashtags, video)",
+      "type": "boolean",
+      "default": true,
+      "prefill": true,
+      "description": "Search results do not include the save count. When enabled, the Actor makes one extra request per search pin to add saveCount, repinCount, commentCount, shareCount, hashtags and video URLs. Disable for faster, cheaper runs that only need titles, links and images."
+    },
+    "proxyConfiguration": {
+      "title": "Proxy configuration",
+      "type": "object",
+      "editor": "proxy",
+      "default": {"useApifyProxy": true},
+      "prefill": {"useApifyProxy": true},
+      "description": "Apify Proxy settings. Enabled by default so that Pinterest sees rotating IP addresses; the Actor changes the proxy session every 25 requests."
+    }
+  }
+}

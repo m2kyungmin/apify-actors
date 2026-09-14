@@ -1,0 +1,25 @@
+{
+  "$schema": "https://apify.com/schemas/v1/actor.ide.json",
+  "actorSpecification": 1,
+  "name": "ads-transparency-scraper",
+  "title": "Google Ads Transparency Scraper: Ad Copy OCR",
+  "description": "See every ad a competitor runs on Google: search advertisers by name or domain and pull hundreds of ads per run, no browser. Each ad has creative text (OCR for image ads), format, regions, first/last shown dates, video IDs and advertiser details. JSON/CSV export, API, weekly schedules.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "meta": {
+    "templateId": "python-start",
+    "generatedBy": "claude-code"
+  },
+  "inputSchema": "./input_schema.json",
+  "outputSchema": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
+  "dockerfile": "../Dockerfile",
+  "usesStandbyMode": false,
+  "defaultRunOptions": {
+    "build": "latest",
+    "memoryMbytes": 2048,
+    "timeoutSecs": 3600
+  }
+}

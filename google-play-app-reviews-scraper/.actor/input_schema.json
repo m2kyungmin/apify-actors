@@ -1,0 +1,14 @@
+{
+  "$schema": "https://apify.com/schemas/v1/input.ide.json",
+  "title": "Google Play App & Reviews Scraper input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "appIds": {"title": "Android package IDs", "type": "array", "editor": "stringList", "prefill": ["com.instagram.android"], "description": "Android application package IDs to collect, such as com.instagram.android. Each valid ID produces one public app metadata record."},
+    "country": {"title": "Country", "type": "string", "editor": "textfield", "default": "US", "prefill": "US", "description": "Two-letter country code used for the Google Play storefront, such as US, GB, KR, or DE."},
+    "language": {"title": "Language", "type": "string", "editor": "textfield", "default": "en", "prefill": "en", "description": "Google Play interface language code used for app text and reviews, such as en, ko, or de."},
+    "maxReviewsPerApp": {"title": "Maximum newest reviews per app", "type": "integer", "default": 20, "minimum": 0, "maximum": 200, "description": "Maximum newest public reviews to save for each successful app. Set 0 to collect app metadata only."},
+    "proxyConfiguration": {"title": "Proxy configuration", "type": "object", "editor": "proxy", "default": {"useApifyProxy": true}, "prefill": {"useApifyProxy": true}, "description": "Apify Proxy settings. Enabled by default because Google can rate-limit data-center traffic; the Actor rotates proxy sessions during longer runs."}
+  },
+  "required": ["appIds"]
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://apify.com/schemas/v1/actor.ide.json",
+  "actorSpecification": 1,
+  "name": "youtube-transcript-scraper",
+  "title": "YouTube Channel Transcript Scraper: Bulk Subtitles",
+  "description": "Turn whole YouTube channels or playlists into text: subtitles for hundreds of videos per run, no API key or browser. Each video returns plain text, timed segments, language, title, channel, views, likes and publish date; auto-translation optional. JSON/CSV, API or scheduled runs.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "meta": {
+    "templateId": "python-start",
+    "generatedBy": "claude-code"
+  },
+  "inputSchema": "./input_schema.json",
+  "outputSchema": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
+  "dockerfile": "../Dockerfile",
+  "usesStandbyMode": false,
+  "defaultRunOptions": {
+    "build": "latest",
+    "memoryMbytes": 1024,
+    "timeoutSecs": 3600
+  }
+}

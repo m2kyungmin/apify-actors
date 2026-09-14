@@ -1,0 +1,13 @@
+{
+  "$schema": "https://apify.com/schemas/v1/dataset.ide.json",
+  "actorSpecification": 1,
+  "title": "Public Pinterest pins, boards and profiles",
+  "fields": {},
+  "views": {
+    "pins": {
+      "title": "Pins",
+      "transformation": {"fields": ["type", "id", "title", "description", "imageUrl", "link", "domain", "saveCount", "pinnerUsername", "boardName", "isVideo", "createdAt", "url", "source", "scrapedAt"]},
+      "display": {"component": "table", "properties": {"type": {"label": "Type", "format": "text"}, "id": {"label": "ID", "format": "text"}, "title": {"label": "Title", "format": "text"}, "description": {"label": "Description", "format": "text"}, "imageUrl": {"label": "Image", "format": "image"}, "link": {"label": "Outbound link", "format": "link"}, "domain": {"label": "Domain", "format": "text"}, "saveCount": {"label": "Saves", "format": "number"}, "pinnerUsername": {"label": "Pinner", "format": "text"}, "boardName": {"label": "Board", "format": "text"}, "isVideo": {"label": "Video", "format": "boolean"}, "createdAt": {"label": "Created", "format": "date"}, "url": {"label": "Pinterest URL", "format": "link"}, "source": {"label": "Source", "format": "text"}, "scrapedAt": {"label": "Scraped at", "format": "date"}}}
+    }
+  }
+}

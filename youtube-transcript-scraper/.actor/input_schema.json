@@ -1,0 +1,120 @@
+{
+  "$schema": "https://apify.com/schemas/v1/input.ide.json",
+  "title": "YouTube Transcript Scraper input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "videoUrls": {
+      "title": "Video URLs or IDs",
+      "type": "array",
+      "editor": "stringList",
+      "prefill": [
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+      ],
+      "description": "YouTube video URLs (watch, youtu.be, shorts, embed, live) or bare 11-character video IDs."
+    },
+    "channelUrls": {
+      "title": "Channel URLs or handles",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Channels to transcribe in bulk: `@handle`, channel URL or `UC...` ID. The newest videos are taken (see *Max videos per channel*)."
+    },
+    "channelSource": {
+      "title": "Channel videos to include",
+      "type": "string",
+      "editor": "select",
+      "default": "uploads",
+      "enum": [
+        "uploads",
+        "videos",
+        "shorts",
+        "streams"
+      ],
+      "enumTitles": [
+        "All uploads (videos + shorts + streams)",
+        "Videos tab (long-form only)",
+        "Shorts tab",
+        "Live streams tab"
+      ],
+      "description": "Which channel tab to list."
+    },
+    "maxVideosPerChannel": {
+      "title": "Max videos per channel",
+      "type": "integer",
+      "default": 20,
+      "minimum": 1,
+      "maximum": 5000,
+      "description": "Newest N videos per channel."
+    },
+    "playlistUrls": {
+      "title": "Playlist URLs",
+      "type": "array",
+      "editor": "stringList",
+      "description": "Public playlists (`PL...`) to transcribe."
+    },
+    "maxVideosPerPlaylist": {
+      "title": "Max videos per playlist",
+      "type": "integer",
+      "default": 50,
+      "minimum": 1,
+      "maximum": 5000,
+      "description": "First N videos of each playlist."
+    },
+    "languages": {
+      "title": "Preferred languages",
+      "type": "array",
+      "editor": "stringList",
+      "default": [
+        "en"
+      ],
+      "prefill": [
+        "en"
+      ],
+      "description": "Language codes in order of preference (`en`, `en-US`, `ko`, `de`...). Prefix matching is used (`en` matches `en-GB`)."
+    },
+    "preferManual": {
+      "title": "Prefer human-made subtitles",
+      "type": "boolean",
+      "default": true,
+      "description": "Use manually uploaded subtitles before auto-generated ones when both exist."
+    },
+    "fallbackToAnyLanguage": {
+      "title": "Fall back to any language",
+      "type": "boolean",
+      "default": true,
+      "description": "If none of the preferred languages exists, return the best available track instead of failing."
+    },
+    "translateTo": {
+      "title": "Translate to",
+      "type": "string",
+      "editor": "textfield",
+      "nullable": true,
+      "description": "Optional target language code (`en`, `es`, `ko`...). Uses YouTube's own auto-translation of the selected track. Rate-limited by YouTube; keep Apify Proxy on."
+    },
+    "includeMetadata": {
+      "title": "Include video metadata",
+      "type": "boolean",
+      "default": true,
+      "description": "Title, channel, duration, views, likes, publish date, thumbnail. Costs one extra page request per video; turn off for very large runs."
+    },
+    "includeSegments": {
+      "title": "Include timed segments",
+      "type": "boolean",
+      "default": true,
+      "description": "Add `segments` (start, duration, text) to each item in addition to the plain `text`."
+    },
+    "proxyConfiguration": {
+      "title": "Proxy configuration",
+      "type": "object",
+      "editor": "proxy",
+      "default": {
+        "useApifyProxy": true
+      },
+      "prefill": {
+        "useApifyProxy": true
+      },
+      "description": "YouTube rate-limits and bot-checks single IPs, so Apify Proxy is on by default and sessions rotate automatically. Known limitation: YouTube often answers \"Sign in to confirm you're not a bot\" for recent videos when the request comes from any datacenter IP (including Apify Proxy). For reliable bulk runs, enter your own residential proxy URLs under \"Custom proxies\" (proxyUrls) — they take precedence and are rotated. Videos that fail the bot check are reported as error items and are never charged."
+    }
+  },
+  "required": []
+}

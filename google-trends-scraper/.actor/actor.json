@@ -1,0 +1,25 @@
+{
+  "$schema": "https://apify.com/schemas/v1/actor.ide.json",
+  "actorSpecification": 1,
+  "name": "google-trends-scraper",
+  "title": "Google Trends Scraper: Trending Now & Regions",
+  "description": "Google Trends data without a browser or pytrends: a keyword with a year of history returns in about 15 s. Interest over time, interest by region, related queries and topics, autocomplete suggestions and the Trending Now feed for any country. JSON/CSV export, API or scheduled tracking.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "meta": {
+    "templateId": "python-start",
+    "generatedBy": "claude-code"
+  },
+  "inputSchema": "./input_schema.json",
+  "outputSchema": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  },
+  "dockerfile": "../Dockerfile",
+  "usesStandbyMode": false,
+  "defaultRunOptions": {
+    "build": "latest",
+    "memoryMbytes": 1024,
+    "timeoutSecs": 3600
+  }
+}

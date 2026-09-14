@@ -1,0 +1,43 @@
+{
+  "$schema": "https://apify.com/schemas/v1/dataset.ide.json",
+  "actorSpecification": 1,
+  "title": "TikTok profiles and videos",
+  "fields": {},
+  "views": {
+    "results": {
+      "title": "Profiles and videos",
+      "transformation": {
+        "fields": [
+          "type", "username", "nickname", "verified", "followerCount", "followingCount", "heartCount", "videoCount",
+          "videoId", "authorUsername", "description", "playCount", "likeCount", "commentCount", "shareCount", "saveCount",
+          "createdAt", "url", "profileUrl", "scrapedAt"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "type": {"label": "Type", "format": "text"},
+          "username": {"label": "Username", "format": "text"},
+          "nickname": {"label": "Profile name", "format": "text"},
+          "verified": {"label": "Verified", "format": "boolean"},
+          "followerCount": {"label": "Followers", "format": "number"},
+          "followingCount": {"label": "Following", "format": "number"},
+          "heartCount": {"label": "Hearts", "format": "number"},
+          "videoCount": {"label": "Profile videos", "format": "number"},
+          "videoId": {"label": "Video ID", "format": "text"},
+          "authorUsername": {"label": "Video author", "format": "text"},
+          "description": {"label": "Description", "format": "text"},
+          "playCount": {"label": "Views", "format": "number"},
+          "likeCount": {"label": "Likes", "format": "number"},
+          "commentCount": {"label": "Comments", "format": "number"},
+          "shareCount": {"label": "Shares", "format": "number"},
+          "saveCount": {"label": "Saves", "format": "number"},
+          "createdAt": {"label": "Published", "format": "date"},
+          "url": {"label": "Video", "format": "link"},
+          "profileUrl": {"label": "Profile", "format": "link"},
+          "scrapedAt": {"label": "Scraped at", "format": "date"}
+        }
+      }
+    }
+  }
+}

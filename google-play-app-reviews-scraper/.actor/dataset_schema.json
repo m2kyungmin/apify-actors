@@ -1,0 +1,13 @@
+{
+  "$schema": "https://apify.com/schemas/v1/dataset.ide.json",
+  "actorSpecification": 1,
+  "title": "Public Google Play apps and reviews",
+  "fields": {},
+  "views": {
+    "results": {
+      "title": "Apps and reviews",
+      "transformation": {"fields": ["type", "appId", "title", "appTitle", "rating", "score", "content", "developer", "reviewCountText", "downloadsText", "createdAt", "url", "appUrl", "scrapedAt"]},
+      "display": {"component": "table", "properties": {"type": {"label": "Type", "format": "text"}, "appId": {"label": "Package ID", "format": "text"}, "title": {"label": "App", "format": "text"}, "appTitle": {"label": "Reviewed app", "format": "text"}, "rating": {"label": "App rating", "format": "number"}, "score": {"label": "Review stars", "format": "number"}, "content": {"label": "Review", "format": "text"}, "developer": {"label": "Developer", "format": "text"}, "reviewCountText": {"label": "Review count", "format": "text"}, "downloadsText": {"label": "Downloads", "format": "text"}, "createdAt": {"label": "Review date", "format": "date"}, "url": {"label": "Google Play app", "format": "link"}, "appUrl": {"label": "Reviewed app", "format": "link"}, "scrapedAt": {"label": "Scraped at", "format": "date"}}}
+    }
+  }
+}

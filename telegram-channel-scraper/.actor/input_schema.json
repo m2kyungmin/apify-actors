@@ -1,0 +1,62 @@
+{
+    "$schema": "https://apify.com/schemas/v1/input.ide.json",
+    "title": "Telegram Channel Scraper input",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "channels": {
+            "title": "Channels",
+            "type": "array",
+            "description": "Public Telegram channels to scrape. Accepts usernames (e.g. `telegram`, `@durov`) or URLs (`https://t.me/telegram`, `https://t.me/s/telegram`). Private channels and channels without a public preview cannot be scraped.",
+            "editor": "stringList",
+            "prefill": ["telegram", "durov"],
+            "minItems": 1,
+            "uniqueItems": true
+        },
+        "maxPostsPerChannel": {
+            "title": "Max posts per channel",
+            "type": "integer",
+            "description": "Maximum number of posts to collect from each channel, newest first. Each page of history returns about 20 posts.",
+            "default": 50,
+            "prefill": 50,
+            "minimum": 1,
+            "maximum": 100000,
+            "unit": "posts"
+        },
+        "postsNewerThan": {
+            "title": "Only posts newer than",
+            "type": "string",
+            "description": "Skip posts published before this date. Accepts `YYYY-MM-DD` or a full ISO 8601 timestamp. Scraping stops for a channel once posts older than this date are reached, which saves time and cost.",
+            "editor": "datepicker",
+            "nullable": true
+        },
+        "postsOlderThan": {
+            "title": "Only posts older than",
+            "type": "string",
+            "description": "Skip posts published after this date. Accepts `YYYY-MM-DD` or a full ISO 8601 timestamp.",
+            "editor": "datepicker",
+            "nullable": true
+        },
+        "includeChannelInfo": {
+            "title": "Include channel info items",
+            "type": "boolean",
+            "description": "Push one extra dataset item per channel with `type: \"channel\"` containing title, description, subscriber count and media counters.",
+            "default": true
+        },
+        "includeTextHtml": {
+            "title": "Include raw HTML of the post text",
+            "type": "boolean",
+            "description": "Add a `textHtml` field with the original formatted HTML of each post (bold, links, custom emoji).",
+            "default": false
+        },
+        "proxyConfiguration": {
+            "title": "Proxy configuration",
+            "type": "object",
+            "description": "Optional. t.me usually works without a proxy. Enable Apify Proxy if you scrape many channels at once and start seeing HTTP 429 responses.",
+            "editor": "proxy",
+            "prefill": { "useApifyProxy": false },
+            "default": { "useApifyProxy": false }
+        }
+    },
+    "required": ["channels"]
+}
