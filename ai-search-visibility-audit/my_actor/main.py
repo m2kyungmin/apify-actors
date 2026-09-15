@@ -63,6 +63,10 @@ async def main() -> None:
             logger=lambda m: Actor.log.info(m), progress=progress,
         )
         if not audit['engines']:
+            failed = audit.get('enginesFailed') or []
+            if failed:
+                first_error = next((r['error'] for r in audit['results'] if r.get('error')), 'unknown error')
+                raise RuntimeError(f'Every answer from {", ".join(failed)} failed ({first_error}). Nothing was charged; check the API key and model, then retry.')
             raise RuntimeError('No engine could be sampled. Provide an API key for at least one selected engine, or enable mockMode.')
 
         report_html = render_report(audit)
@@ -73,7 +77,7 @@ async def main() -> None:
         report_url = await store.get_public_url('REPORT.html')
         summary_item = {
             'type': 'audit', 'brand': brand, 'website': audit['website'], 'domain': audit['domain'], 'mode': audit['mode'],
-            'engines': audit['engines'], 'enginesSkipped': audit['enginesSkipped'], 'promptCount': audit['promptCount'],
+            'engines': audit['engines'], 'enginesSkipped': audit['enginesSkipped'], 'enginesFailed': audit.get('enginesFailed', []), 'promptCount': audit['promptCount'],
             'samplesPerPrompt': samples, 'reportUrl': report_url, 'generatedAt': datetime.now(UTC).isoformat(),
             **audit['summary'],
         }
