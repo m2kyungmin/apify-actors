@@ -224,29 +224,70 @@ class PerplexityClient:
 GEMINI_MODEL_FALLBACKS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest']
 
 
+def _gemini_version(name: str) -> tuple[float, int]:
+    match = re.search(r'gemini-(\d+(?:\.\d+)?)', name)
+    version = float(match.group(1)) if match else 0.0
+    # plain "flash" beats dated/preview variants of the same version
+    stable = 1 if re.fullmatch(r'gemini-\d+(?:\.\d+)?-flash', name) else 0
+    return version, stable
+
+
 class GeminiClient:
     """Google AI Studio key. The free tier is enough for a default audit: it is rate-limited per minute,
-    so 429s are retried with the delay Google asks for instead of failing the sample."""
+    so 429s are retried with the delay Google asks for instead of failing the sample. Model ids are
+    retired regularly, so an unknown model is replaced by the newest Flash model the key can use."""
 
     def __init__(self, api_key: str, model: str = 'gemini-2.5-flash', logger: Logger = print) -> None:
         self.model = model
         self.api_key = api_key
         self.logger = logger
         self._client = httpx.Client(base_url='https://generativelanguage.googleapis.com/v1beta', timeout=90)
+        self._tried: set[str] = set()
+        self._available: list[str] | None = None
 
     def close(self) -> None:
         self._client.close()
 
+    def _list_models(self) -> list[str]:
+        if self._available is None:
+            names: list[str] = []
+            try:
+                response = self._client.get('/models', params={'key': self.api_key, 'pageSize': 200})
+                if response.status_code == 200:
+                    for item in response.json().get('models', []):
+                        if 'generateContent' in (item.get('supportedGenerationMethods') or []):
+                            names.append(item.get('name', '').removeprefix('models/'))
+            except httpx.HTTPError:
+                pass
+            self._available = names
+        return self._available
+
+    def _next_model(self) -> str | None:
+        self._tried.add(self.model)
+        available = self._list_models()
+        for name in GEMINI_MODEL_FALLBACKS:
+            if name not in self._tried and (not available or name in available):
+                return name
+        candidates = [n for n in available if 'flash' in n and n not in self._tried
+                      and not re.search(r'lite|image|tts|live|audio|embedding|native|exp', n)]
+        candidates.sort(key=_gemini_version, reverse=True)
+        return candidates[0] if candidates else None
+
     def _generate(self, body: dict[str, Any], *, retries: int = 6) -> dict[str, Any]:
         delay = 10.0
-        for attempt in range(1, retries + 1):
+        attempt = 0
+        switches = 0
+        while attempt < retries:
+            attempt += 1
             response = self._client.post(f'/models/{self.model}:generateContent', params={'key': self.api_key}, json=body)
-            if response.status_code == 404:
-                alternatives = [m for m in GEMINI_MODEL_FALLBACKS if m != self.model]
-                if not alternatives:
-                    raise RuntimeError(f'Gemini model {self.model} not found: {response.text[:200]}')
-                self.logger(f'Gemini model {self.model} not available, switching to {alternatives[0]}')
-                self.model = alternatives[0]
+            if response.status_code == 404 and switches < 4:
+                replacement = self._next_model()
+                if replacement is None:
+                    raise RuntimeError(f'Gemini model {self.model} not found and no Flash model is available for this key: {response.text[:200]}')
+                self.logger(f'Gemini model {self.model} not available ({response.text[:120]!r}); switching to {replacement}')
+                self.model = replacement
+                switches += 1
+                attempt -= 1  # a model switch is not a rate-limit retry
                 continue
             if response.status_code == 429 and attempt < retries:
                 wait = delay
@@ -319,10 +360,12 @@ def _fallback_prompts(profile: SiteProfile, brand: str, description: str, count:
 
 
 def generate_prompts(profile: SiteProfile, brand: str, competitors: list[str], description: str, count: int,
-                     generator: Any | None, logger: Logger = print) -> list[dict[str, str]]:
-    """`generator` is an OpenAIClient or GeminiClient (anything with generate_json); None -> templates."""
+                     generator: Any | None, logger: Logger = print) -> tuple[list[dict[str, str]], str]:
+    """`generator` is an OpenAIClient or GeminiClient (anything with generate_json); None -> templates.
+    Returns (prompts, source) where source says who actually wrote them."""
     if generator is None:
-        return _fallback_prompts(profile, brand, description, count)
+        return _fallback_prompts(profile, brand, description, count), 'template'
+    source = 'OpenAI-generated' if isinstance(generator, OpenAIClient) else 'Gemini-generated'
     categories = '\n'.join(f'- {key}: {label}' for key, label in PROMPT_CATEGORIES)
     system = ('You design realistic questions that potential buyers type into AI assistants such as ChatGPT, '
               'Perplexity or Gemini before choosing a product or vendor. Questions must be natural, specific to the '
@@ -341,12 +384,12 @@ def generate_prompts(profile: SiteProfile, brand: str, competitors: list[str], d
             if p.get('category') not in valid:
                 p['category'] = 'use_case'
         if len(prompts) >= max(5, count // 2):
-            return prompts[:count]
+            return prompts[:count], source
         logger(f'Prompt generator returned only {len(prompts)} prompts; topping up with templates')
-        return (prompts + _fallback_prompts(profile, brand, description, count))[:count]
+        return (prompts + _fallback_prompts(profile, brand, description, count))[:count], source + '+template'
     except Exception as exc:  # noqa: BLE001
         logger(f'Prompt generation failed ({exc}); using template prompts')
-        return _fallback_prompts(profile, brand, description, count)
+        return _fallback_prompts(profile, brand, description, count), 'template'
 
 
 # ---------------------------------------------------------------- mock engine
@@ -477,10 +520,9 @@ def run_audit(
     openai = OpenAIClient(keys['openai'], openai_model, logger) if keys.get('openai') and not mock else None
     gemini = GeminiClient(keys['gemini'], gemini_model, logger) if keys.get('gemini') and not mock else None
     generator = openai or gemini
-    prompts = generate_prompts(profile, brand, competitors, description, prompt_count, generator, logger)
+    prompts, source = generate_prompts(profile, brand, competitors, description, prompt_count, generator, logger)
     for index, prompt in enumerate(prompts, start=1):
         prompt['id'] = index
-    source = 'template' if generator is None else ('OpenAI-generated' if generator is openai else 'Gemini-generated')
     logger(f'{len(prompts)} prompts ready ({source})')
 
     clients: dict[str, Any] = {}
@@ -534,10 +576,14 @@ def run_audit(
     for client in clients.values():
         client.close()
 
-    summary = summarise(results, brand=brand, competitors=competitors, engines=active_engines)
+    engines_ok = [e for e in active_engines if any(r['engine'] == e and not r['error'] for r in results)]
+    engines_failed = [e for e in active_engines if e not in engines_ok]
+    if engines_failed:
+        logger(f'Engines with no successful answer: {", ".join(engines_failed)}')
+    summary = summarise(results, brand=brand, competitors=competitors, engines=engines_ok)
     return {
         'brand': brand, 'website': profile.url, 'domain': profile.domain, 'competitors': competitors,
-        'engines': active_engines, 'enginesSkipped': skipped, 'mode': 'mock' if mock else 'live',
+        'engines': engines_ok, 'enginesSkipped': skipped, 'enginesFailed': engines_failed, 'mode': 'mock' if mock else 'live',
         'promptCount': len(prompts), 'samplesPerPrompt': samples_per_prompt,
         'siteProfile': {'title': profile.title, 'description': profile.description, 'keyPages': [p['url'] for p in profile.pages]},
         'prompts': prompts, 'results': results, 'summary': summary,
