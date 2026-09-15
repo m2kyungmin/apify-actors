@@ -4,19 +4,135 @@
   "type": "object",
   "schemaVersion": 1,
   "properties": {
-    "websiteUrl": {"title": "Website URL", "type": "string", "editor": "textfield", "prefill": "https://apify.com", "description": "Homepage of the brand to audit. The Actor reads the homepage and up to five key pages (about, products, pricing, blog) to understand what the brand sells."},
-    "brandName": {"title": "Brand name", "type": "string", "editor": "textfield", "prefill": "Apify", "description": "How the brand is written in text, for example 'Apify'. Mentions are matched case-insensitively together with the website domain."},
-    "brandAliases": {"title": "Brand aliases", "type": "array", "editor": "stringList", "prefill": [], "description": "Other spellings or product names that count as a brand mention (optional)."},
-    "competitors": {"title": "Competitors", "type": "array", "editor": "stringList", "prefill": ["Bright Data", "Zyte", "ScrapingBee"], "description": "Competitor brand names to measure share of voice against (0-10)."},
-    "businessDescription": {"title": "Business description", "type": "string", "editor": "textarea", "prefill": "", "description": "Optional one-paragraph description of what the brand offers and who buys it. Improves prompt generation; leave empty to rely on the crawled site."},
-    "promptCount": {"title": "Number of prompts", "type": "integer", "default": 30, "prefill": 30, "minimum": 5, "maximum": 60, "description": "How many buyer-intent questions to generate and test (5-60)."},
-    "samplesPerPrompt": {"title": "Samples per prompt", "type": "integer", "default": 3, "prefill": 3, "minimum": 1, "maximum": 5, "description": "How many times each prompt is asked per engine. AI answers vary, so 3 samples give a more stable citation rate."},
-    "engines": {"title": "AI engines", "type": "array", "editor": "select", "default": ["openai"], "prefill": ["openai"], "items": {"type": "string", "enum": ["openai", "perplexity", "gemini"], "enumTitles": ["ChatGPT (OpenAI)", "Perplexity (sonar)", "Gemini (Google)"]}, "description": "Which answer engines to sample. Each engine needs its own API key below; engines without a key are skipped (or mocked when Mock mode is on)."},
-    "openaiApiKey": {"title": "OpenAI API key", "type": "string", "editor": "textfield", "isSecret": true, "description": "Used for prompt generation and for the ChatGPT engine (Responses API with web search when available, chat completions otherwise). Get one at platform.openai.com. Typical cost per audit with defaults: under $1."},
-    "openaiModel": {"title": "OpenAI model", "type": "string", "editor": "textfield", "default": "gpt-4o-mini", "prefill": "gpt-4o-mini", "description": "OpenAI model for prompt generation and the ChatGPT engine."},
-    "perplexityApiKey": {"title": "Perplexity API key", "type": "string", "editor": "textfield", "isSecret": true, "description": "Enables the Perplexity engine (model 'sonar'), which returns web citations. Get one at perplexity.ai/settings/api."},
-    "geminiApiKey": {"title": "Gemini API key", "type": "string", "editor": "textfield", "isSecret": true, "description": "Enables the Gemini engine (gemini-2.0-flash with Google Search grounding). Get one at aistudio.google.com."},
-    "mockMode": {"title": "Mock mode (no API calls)", "type": "boolean", "default": false, "prefill": false, "description": "Generate a demo report with simulated answers instead of calling any AI API. Automatically used when no API key is provided. Mock audits are not charged."}
+    "websiteUrl": {
+      "title": "Website URL",
+      "type": "string",
+      "editor": "textfield",
+      "prefill": "https://apify.com",
+      "description": "Homepage of the brand to audit. The Actor reads the homepage and up to five key pages (about, products, pricing, blog) to understand what the brand sells."
+    },
+    "brandName": {
+      "title": "Brand name",
+      "type": "string",
+      "editor": "textfield",
+      "prefill": "Apify",
+      "description": "How the brand is written in text, for example 'Apify'. Mentions are matched case-insensitively together with the website domain."
+    },
+    "brandAliases": {
+      "title": "Brand aliases",
+      "type": "array",
+      "editor": "stringList",
+      "prefill": [],
+      "description": "Other spellings or product names that count as a brand mention (optional)."
+    },
+    "competitors": {
+      "title": "Competitors",
+      "type": "array",
+      "editor": "stringList",
+      "prefill": [
+        "Bright Data",
+        "Zyte",
+        "ScrapingBee"
+      ],
+      "description": "Competitor brand names to measure share of voice against (0-10)."
+    },
+    "businessDescription": {
+      "title": "Business description",
+      "type": "string",
+      "editor": "textarea",
+      "prefill": "",
+      "description": "Optional one-paragraph description of what the brand offers and who buys it. Improves prompt generation; leave empty to rely on the crawled site."
+    },
+    "promptCount": {
+      "title": "Number of prompts",
+      "type": "integer",
+      "default": 30,
+      "prefill": 30,
+      "minimum": 5,
+      "maximum": 60,
+      "description": "How many buyer-intent questions to generate and test (5-60)."
+    },
+    "samplesPerPrompt": {
+      "title": "Samples per prompt",
+      "type": "integer",
+      "default": 3,
+      "prefill": 3,
+      "minimum": 1,
+      "maximum": 5,
+      "description": "How many times each prompt is asked per engine. AI answers vary, so 3 samples give a more stable citation rate."
+    },
+    "engines": {
+      "title": "AI engines",
+      "type": "array",
+      "editor": "select",
+      "default": [
+        "openai"
+      ],
+      "prefill": [
+        "openai"
+      ],
+      "items": {
+        "type": "string",
+        "enum": [
+          "openai",
+          "perplexity",
+          "gemini"
+        ],
+        "enumTitles": [
+          "ChatGPT (OpenAI)",
+          "Perplexity (sonar)",
+          "Gemini (Google)"
+        ]
+      },
+      "description": "Which answer engines to sample. Each engine needs its own API key below; engines without a key are skipped (or mocked when Mock mode is on). Cheapest live setup: Gemini only with a free Google AI Studio key."
+    },
+    "openaiApiKey": {
+      "title": "OpenAI API key",
+      "type": "string",
+      "editor": "textfield",
+      "isSecret": true,
+      "description": "Enables the ChatGPT engine (Responses API with web search when available, chat completions otherwise) and, when present, generates the questions. Optional: with only a Gemini key, Gemini generates the questions. Get one at platform.openai.com. Typical cost per audit with defaults: under $1."
+    },
+    "openaiModel": {
+      "title": "OpenAI model",
+      "type": "string",
+      "editor": "textfield",
+      "default": "gpt-4o-mini",
+      "prefill": "gpt-4o-mini",
+      "description": "OpenAI model for prompt generation and the ChatGPT engine."
+    },
+    "perplexityApiKey": {
+      "title": "Perplexity API key",
+      "type": "string",
+      "editor": "textfield",
+      "isSecret": true,
+      "description": "Enables the Perplexity engine (model 'sonar'), which returns web citations. Get one at perplexity.ai/settings/api."
+    },
+    "geminiApiKey": {
+      "title": "Gemini API key",
+      "type": "string",
+      "editor": "textfield",
+      "isSecret": true,
+      "description": "Enables the Gemini engine (Google Search grounding) and generates the questions when no OpenAI key is given. A free Google AI Studio key (aistudio.google.com) is enough for a default audit; free-tier rate limits are waited out automatically."
+    },
+    "geminiModel": {
+      "title": "Gemini model",
+      "type": "string",
+      "editor": "textfield",
+      "default": "gemini-2.5-flash",
+      "prefill": "gemini-2.5-flash",
+      "description": "Gemini model for the Gemini engine and (without an OpenAI key) prompt generation. Falls back to gemini-2.0-flash / gemini-flash-latest if the model is not available."
+    },
+    "mockMode": {
+      "title": "Mock mode (no API calls)",
+      "type": "boolean",
+      "default": false,
+      "prefill": false,
+      "description": "Generate a demo report with simulated answers instead of calling any AI API. Automatically used when no API key is provided. Mock audits are not charged."
+    }
   },
-  "required": ["websiteUrl", "brandName"]
+  "required": [
+    "websiteUrl",
+    "brandName"
+  ]
 }

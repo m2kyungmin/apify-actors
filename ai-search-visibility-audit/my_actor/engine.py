@@ -170,6 +170,9 @@ class OpenAIClient:
             raise RuntimeError(f'OpenAI chat error {response.status_code}: {response.text[:200]}')
         return response.json()['choices'][0]['message']['content']
 
+    def generate_json(self, system: str, user: str) -> str:
+        return self.chat([{'role': 'system', 'content': system}, {'role': 'user', 'content': user}], json_mode=True, temperature=0.8)
+
     def answer_with_search(self, prompt: str) -> tuple[str, list[str], str]:
         """Ask like a ChatGPT user would; use the Responses API web_search tool when available."""
         if self._responses_supported is not False:
@@ -218,25 +221,65 @@ class PerplexityClient:
         return text, [c for c in citations if c], self.model
 
 
+GEMINI_MODEL_FALLBACKS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest']
+
+
 class GeminiClient:
-    def __init__(self, api_key: str, model: str = 'gemini-2.0-flash') -> None:
+    """Google AI Studio key. The free tier is enough for a default audit: it is rate-limited per minute,
+    so 429s are retried with the delay Google asks for instead of failing the sample."""
+
+    def __init__(self, api_key: str, model: str = 'gemini-2.5-flash', logger: Logger = print) -> None:
         self.model = model
         self.api_key = api_key
+        self.logger = logger
         self._client = httpx.Client(base_url='https://generativelanguage.googleapis.com/v1beta', timeout=90)
 
     def close(self) -> None:
         self._client.close()
 
-    def answer(self, prompt: str) -> tuple[str, list[str], str]:
-        response = self._client.post(
-            f'/models/{self.model}:generateContent', params={'key': self.api_key},
-            json={'contents': [{'parts': [{'text': prompt}]}], 'tools': [{'google_search': {}}]},
-        )
-        if response.status_code >= 400:
-            raise RuntimeError(f'Gemini error {response.status_code}: {response.text[:200]}')
-        data = response.json()
+    def _generate(self, body: dict[str, Any], *, retries: int = 6) -> dict[str, Any]:
+        delay = 10.0
+        for attempt in range(1, retries + 1):
+            response = self._client.post(f'/models/{self.model}:generateContent', params={'key': self.api_key}, json=body)
+            if response.status_code == 404:
+                alternatives = [m for m in GEMINI_MODEL_FALLBACKS if m != self.model]
+                if not alternatives:
+                    raise RuntimeError(f'Gemini model {self.model} not found: {response.text[:200]}')
+                self.logger(f'Gemini model {self.model} not available, switching to {alternatives[0]}')
+                self.model = alternatives[0]
+                continue
+            if response.status_code == 429 and attempt < retries:
+                wait = delay
+                match = re.search(r'retry in (\d+(?:\.\d+)?)s', response.text, flags=re.I)
+                if match:
+                    wait = min(120.0, float(match.group(1)) + 1.0)
+                self.logger(f'Gemini rate limit hit (free tier); waiting {wait:.0f}s (attempt {attempt}/{retries})')
+                time.sleep(wait)
+                delay = min(120.0, delay * 2)
+                continue
+            if response.status_code >= 400:
+                raise RuntimeError(f'Gemini error {response.status_code}: {response.text[:200]}')
+            return response.json()
+        raise RuntimeError('Gemini rate limit: retries exhausted')
+
+    @staticmethod
+    def _text(data: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         candidate = (data.get('candidates') or [{}])[0]
         text = ''.join(part.get('text', '') for part in (candidate.get('content') or {}).get('parts', []))
+        return text, candidate
+
+    def generate_json(self, system: str, user: str) -> str:
+        data = self._generate({
+            'systemInstruction': {'parts': [{'text': system}]},
+            'contents': [{'parts': [{'text': user}]}],
+            'generationConfig': {'responseMimeType': 'application/json', 'temperature': 0.8},
+        })
+        text, _ = self._text(data)
+        return text
+
+    def answer(self, prompt: str) -> tuple[str, list[str], str]:
+        data = self._generate({'contents': [{'parts': [{'text': prompt}]}], 'tools': [{'google_search': {}}]})
+        text, candidate = self._text(data)
         citations = []
         for chunk in (candidate.get('groundingMetadata') or {}).get('groundingChunks', []) or []:
             uri = (chunk.get('web') or {}).get('uri')
@@ -276,8 +319,9 @@ def _fallback_prompts(profile: SiteProfile, brand: str, description: str, count:
 
 
 def generate_prompts(profile: SiteProfile, brand: str, competitors: list[str], description: str, count: int,
-                     openai: OpenAIClient | None, logger: Logger = print) -> list[dict[str, str]]:
-    if openai is None:
+                     generator: Any | None, logger: Logger = print) -> list[dict[str, str]]:
+    """`generator` is an OpenAIClient or GeminiClient (anything with generate_json); None -> templates."""
+    if generator is None:
         return _fallback_prompts(profile, brand, description, count)
     categories = '\n'.join(f'- {key}: {label}' for key, label in PROMPT_CATEGORIES)
     system = ('You design realistic questions that potential buyers type into AI assistants such as ChatGPT, '
@@ -289,7 +333,7 @@ def generate_prompts(profile: SiteProfile, brand: str, competitors: list[str], d
             f'Generate exactly {count} questions spread evenly across these categories:\n{categories}\n\n'
             'Respond as {"prompts": [{"category": "<key>", "prompt": "<question>"}, ...]}.')
     try:
-        raw = openai.chat([{'role': 'system', 'content': system}, {'role': 'user', 'content': user}], json_mode=True, temperature=0.8)
+        raw = generator.generate_json(system, user)
         data = json.loads(raw)
         prompts = [p for p in data.get('prompts', []) if isinstance(p, dict) and p.get('prompt')]
         valid = {key for key, _ in PROMPT_CATEGORIES}
@@ -424,16 +468,20 @@ def run_audit(
     keys: dict[str, str],
     openai_model: str,
     mock: bool,
+    gemini_model: str = 'gemini-2.5-flash',
     logger: Logger = print,
     progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     started = time.time()
     profile = crawl_site(website_url, logger=logger)
     openai = OpenAIClient(keys['openai'], openai_model, logger) if keys.get('openai') and not mock else None
-    prompts = generate_prompts(profile, brand, competitors, description, prompt_count, openai, logger)
+    gemini = GeminiClient(keys['gemini'], gemini_model, logger) if keys.get('gemini') and not mock else None
+    generator = openai or gemini
+    prompts = generate_prompts(profile, brand, competitors, description, prompt_count, generator, logger)
     for index, prompt in enumerate(prompts, start=1):
         prompt['id'] = index
-    logger(f'{len(prompts)} prompts ready ({"LLM-generated" if openai else "template"})')
+    source = 'template' if generator is None else ('OpenAI-generated' if generator is openai else 'Gemini-generated')
+    logger(f'{len(prompts)} prompts ready ({source})')
 
     clients: dict[str, Any] = {}
     if not mock:
@@ -441,8 +489,8 @@ def run_audit(
             clients['openai'] = openai
         if 'perplexity' in engines and keys.get('perplexity'):
             clients['perplexity'] = PerplexityClient(keys['perplexity'])
-        if 'gemini' in engines and keys.get('gemini'):
-            clients['gemini'] = GeminiClient(keys['gemini'])
+        if 'gemini' in engines and gemini:
+            clients['gemini'] = gemini
     active_engines = engines if mock else [e for e in engines if e in clients]
     skipped = [e for e in engines if e not in active_engines]
     if skipped:
