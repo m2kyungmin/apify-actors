@@ -1,5 +1,7 @@
 # AI Search Visibility Audit: ChatGPT & Perplexity
 
+> **Run it on Apify Store:** https://apify.com/kyungminlee/ai-search-visibility-audit — pay per result, no setup. This folder is the Actor's source code (Python, `httpx`, Apify SDK).
+
 Find out **how often AI answer engines recommend your brand** when buyers ask
 them for advice — and who they recommend instead. The Actor reads your website,
 writes 30 realistic buyer-intent questions, asks ChatGPT, Perplexity and/or
