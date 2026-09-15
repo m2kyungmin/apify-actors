@@ -34,3 +34,7 @@ Deploy your own copy with the [Apify CLI](https://docs.apify.com/cli): `apify pu
 - Input schemas live in `.actor/input_schema.json`; every field has a description and a prefill that succeeds within minutes.
 - Pay-per-event charging uses `Actor.charge()` with the run's spending limit respected; failed items are never charged.
 - Undocumented site endpoints change; if an Actor stops working, open an issue on its Store page.
+
+## License
+
+[GNU AGPL-3.0](./LICENSE). You are free to read, run, modify and redistribute this code; if you deploy a modified version as a service (including on Apify Store), you must publish your changes under the same license. For a different licensing arrangement, open an issue.
