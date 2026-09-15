@@ -82,9 +82,16 @@ async def main() -> None:
             **audit['summary'],
         }
         charged = False
-        if not mock:
+        planned = audit.get('samplesPlanned') or 1
+        completion = audit['summary']['samplesOk'] / planned
+        summary_item['samplesPlanned'] = planned
+        summary_item['completionRate'] = round(completion, 3)
+        if not mock and completion >= 0.5:
             charge = await Actor.charge(EVENT_AUDIT, count=1)
             charged = bool(charge.charged_count) if hasattr(charge, 'charged_count') else True
+        elif not mock:
+            Actor.log.warning(f'Only {audit["summary"]["samplesOk"]}/{planned} answers succeeded (provider quota or errors); '
+                              'the partial report is delivered free of charge.')
         summary_item['charged'] = charged
         await Actor.push_data(summary_item)
         for result in audit['results']:

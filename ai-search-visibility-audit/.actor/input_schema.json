@@ -50,7 +50,7 @@
       "prefill": 30,
       "minimum": 5,
       "maximum": 60,
-      "description": "How many buyer-intent questions to generate and test (5-60)."
+      "description": "How many buyer-intent questions to generate and test (5-60). With a free Gemini key use 10-15."
     },
     "samplesPerPrompt": {
       "title": "Samples per prompt",
@@ -59,7 +59,7 @@
       "prefill": 3,
       "minimum": 1,
       "maximum": 5,
-      "description": "How many times each prompt is asked per engine. AI answers vary, so 3 samples give a more stable citation rate."
+      "description": "How many times each prompt is asked per engine. AI answers vary, so 3 samples give a more stable citation rate. With a free Gemini key use 1."
     },
     "engines": {
       "title": "AI engines",
@@ -84,7 +84,7 @@
           "Gemini (Google)"
         ]
       },
-      "description": "Which answer engines to sample. Each engine needs its own API key below; engines without a key are skipped (or mocked when Mock mode is on). Cheapest live setup: Gemini only with a free Google AI Studio key."
+      "description": "Which answer engines to sample. Each engine needs its own API key below; engines without a key are skipped (or mocked when Mock mode is on). Cheapest live setup: Gemini only with a free Google AI Studio key and a small audit (about 15 answers per day)."
     },
     "openaiApiKey": {
       "title": "OpenAI API key",
@@ -113,7 +113,7 @@
       "type": "string",
       "editor": "textfield",
       "isSecret": true,
-      "description": "Enables the Gemini engine (Google Search grounding) and generates the questions when no OpenAI key is given. A free Google AI Studio key (aistudio.google.com) is enough for a default audit; free-tier rate limits are waited out automatically."
+      "description": "Enables the Gemini engine (Google Search grounding when your key has grounding quota) and generates the questions when no OpenAI key is given. A free Google AI Studio key works but is small (observed Sept 2026: 20 requests per day per model, no grounding): keep Number of prompts x Samples per prompt at or below about 15 for a free key, or use a paid Gemini key for the default 30 x 3. Rate limits are waited out and the Actor switches to another Flash model when one is exhausted."
     },
     "geminiModel": {
       "title": "Gemini model",
