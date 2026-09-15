@@ -232,10 +232,16 @@ def _gemini_version(name: str) -> tuple[float, int]:
     return version, stable
 
 
+class GeminiRateLimited(RuntimeError):
+    """Raised when Gemini keeps answering 429 after the retry budget; carries Google's last message."""
+
+
 class GeminiClient:
     """Google AI Studio key. The free tier is enough for a default audit: it is rate-limited per minute,
     so 429s are retried with the delay Google asks for instead of failing the sample. Model ids are
-    retired regularly, so an unknown model is replaced by the newest Flash model the key can use."""
+    retired regularly, so an unknown model is replaced by the newest Flash model the key can use.
+    Google Search grounding has its own (sometimes zero) free quota; when it is exhausted the client
+    keeps sampling without grounding and says so in the model label."""
 
     def __init__(self, api_key: str, model: str = 'gemini-2.5-flash', logger: Logger = print) -> None:
         self.model = model
@@ -244,6 +250,8 @@ class GeminiClient:
         self._client = httpx.Client(base_url='https://generativelanguage.googleapis.com/v1beta', timeout=90)
         self._tried: set[str] = set()
         self._available: list[str] | None = None
+        self.grounding = True
+        self._logged_429 = False
 
     def close(self) -> None:
         self._client.close()
@@ -269,14 +277,16 @@ class GeminiClient:
             if name not in self._tried and (not available or name in available):
                 return name
         candidates = [n for n in available if 'flash' in n and n not in self._tried
-                      and not re.search(r'lite|image|tts|live|audio|embedding|native|exp', n)]
-        candidates.sort(key=_gemini_version, reverse=True)
+                      and not re.search(r'image|tts|live|audio|embedding|native|exp', n)]
+        # newest first; full Flash models before their -lite siblings
+        candidates.sort(key=lambda n: (_gemini_version(n), 'lite' not in n), reverse=True)
         return candidates[0] if candidates else None
 
     def _generate(self, body: dict[str, Any], *, retries: int = 6) -> dict[str, Any]:
         delay = 10.0
         attempt = 0
         switches = 0
+        overloaded = 0
         while attempt < retries:
             attempt += 1
             response = self._client.post(f'/models/{self.model}:generateContent', params={'key': self.api_key}, json=body)
@@ -289,7 +299,35 @@ class GeminiClient:
                 switches += 1
                 attempt -= 1  # a model switch is not a rate-limit retry
                 continue
-            if response.status_code == 429 and attempt < retries:
+            if response.status_code == 503 and attempt < retries:
+                # "high demand" - short backoff, and after two hits move to another Flash model
+                overloaded += 1
+                if overloaded >= 2 and switches < 4:
+                    replacement = self._next_model()
+                    if replacement:
+                        self.logger(f'Gemini model {self.model} overloaded (503); switching to {replacement}')
+                        self.model = replacement
+                        switches += 1
+                        overloaded = 0
+                        continue
+                time.sleep(min(30.0, 4.0 * overloaded))
+                continue
+            if response.status_code == 429:
+                if not self._logged_429:
+                    self._logged_429 = True
+                    self.logger(f'Gemini 429 detail: {" ".join(response.text.split())[:1500]}')
+                scope = self._zero_quota_scope(response.text)
+                if scope == 'model' and switches < 4:
+                    # this model has no free quota at all (typical for the newest release) - use another one
+                    replacement = self._next_model()
+                    if replacement:
+                        self.logger(f'Gemini model {self.model} has no quota on this key; switching to {replacement}')
+                        self.model = replacement
+                        switches += 1
+                        attempt -= 1
+                        continue
+                if attempt >= retries or scope is not None:
+                    raise GeminiRateLimited(f'Gemini rate limit: {" ".join(response.text.split())[:200]}')
                 wait = delay
                 match = re.search(r'retry in (\d+(?:\.\d+)?)s', response.text, flags=re.I)
                 if match:
@@ -301,7 +339,26 @@ class GeminiClient:
             if response.status_code >= 400:
                 raise RuntimeError(f'Gemini error {response.status_code}: {response.text[:200]}')
             return response.json()
-        raise RuntimeError('Gemini rate limit: retries exhausted')
+        raise GeminiRateLimited('Gemini rate limit: retries exhausted')
+
+    @staticmethod
+    def _zero_quota_scope(text: str) -> str | None:
+        """A 429 whose quota limit is 0 never clears by waiting. Returns 'grounding' when the exhausted
+        quota is the Google Search tool, 'model' when it is the model's own request quota, None otherwise."""
+        try:
+            details = json.loads(text).get('error', {}).get('details', [])
+        except (ValueError, AttributeError):
+            details = []
+        for detail in details:
+            for violation in detail.get('violations', []) or []:
+                label = f"{violation.get('quotaMetric', '')} {violation.get('quotaId', '')}".lower()
+                exhausted_for_today = 'perday' in label
+                if str(violation.get('quotaValue', '')).strip() != '0' and not exhausted_for_today:
+                    continue
+                return 'grounding' if re.search(r'ground|search|tool', label) else 'model'
+        if re.search(r'"?(?:limit|quotaValue)"?\s*:\s*"?0"?(?!\d)', text):
+            return 'model'
+        return None
 
     @staticmethod
     def _text(data: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -319,14 +376,24 @@ class GeminiClient:
         return text
 
     def answer(self, prompt: str) -> tuple[str, list[str], str]:
-        data = self._generate({'contents': [{'parts': [{'text': prompt}]}], 'tools': [{'google_search': {}}]})
+        contents = [{'parts': [{'text': prompt}]}]
+        if self.grounding:
+            try:
+                data = self._generate({'contents': contents, 'tools': [{'google_search': {}}]}, retries=3)
+            except GeminiRateLimited as exc:
+                self.grounding = False
+                self.logger(f'Google Search grounding quota exhausted for this key ({exc}); '
+                            'continuing without grounding - answers come from model knowledge, no citations')
+                data = self._generate({'contents': contents})
+        else:
+            data = self._generate({'contents': contents})
         text, candidate = self._text(data)
         citations = []
         for chunk in (candidate.get('groundingMetadata') or {}).get('groundingChunks', []) or []:
             uri = (chunk.get('web') or {}).get('uri')
             if uri:
                 citations.append(uri)
-        return text, citations, f'{self.model}+google_search'
+        return text, citations, f'{self.model}+google_search' if self.grounding else f'{self.model}+no_search'
 
 
 # ---------------------------------------------------------------- prompts
@@ -334,7 +401,10 @@ class GeminiClient:
 def _fallback_prompts(profile: SiteProfile, brand: str, description: str, count: int) -> list[dict[str, str]]:
     """Template prompts used in mock mode or when the LLM prompt generator is unavailable."""
     topic = (description or profile.description or profile.title or f'{brand} products').strip()
-    topic = re.sub(r'\s+', ' ', topic)[:90]
+    topic = re.sub(r'\s+', ' ', topic)
+    if len(topic) > 90:
+        topic = topic[:90].rsplit(' ', 1)[0]
+    topic = topic.rstrip(' ,.;:-')
     seeds = [
         ('best_of', f'What are the best tools or services for {topic}?'),
         ('best_of', f'Top 5 companies I should consider for {topic}'),
@@ -541,9 +611,18 @@ def run_audit(
     results: list[dict[str, Any]] = []
     total = len(prompts) * samples_per_prompt * len(active_engines)
     done = 0
+    stopped_early: dict[str, str] = {}
     for engine in active_engines:
+        consecutive_failures = 0
         for prompt in prompts:
+            if engine in stopped_early:
+                break
             for sample_index in range(samples_per_prompt):
+                if consecutive_failures >= 4:
+                    stopped_early[engine] = results[-1]['error'] or 'repeated failures'
+                    logger(f'{engine}: 4 consecutive failures ({stopped_early[engine][:120]}); stopping this engine early '
+                           f'with {sum(1 for r in results if r["engine"] == engine and not r["error"])} answers')
+                    break
                 t0 = time.time()
                 error = None
                 model = 'mock'
@@ -557,8 +636,10 @@ def run_audit(
                         answer, citations, model = clients['perplexity'].answer(prompt['prompt'])
                     else:
                         answer, citations, model = clients['gemini'].answer(prompt['prompt'])
+                    consecutive_failures = 0
                 except Exception as exc:  # noqa: BLE001
                     answer, error = '', f'{type(exc).__name__}: {exc}'[:300]
+                    consecutive_failures += 1
                     logger(f'{engine} prompt {prompt["id"]} sample {sample_index + 1} failed: {error}')
                 sample = Sample(engine, prompt['id'], sample_index, answer, citations, model, error, int((time.time() - t0) * 1000))
                 analysis = analyse_sample(sample, brand=brand, aliases=aliases, domain=profile.domain, competitors=competitors)
@@ -584,7 +665,8 @@ def run_audit(
     return {
         'brand': brand, 'website': profile.url, 'domain': profile.domain, 'competitors': competitors,
         'engines': engines_ok, 'enginesSkipped': skipped, 'enginesFailed': engines_failed, 'mode': 'mock' if mock else 'live',
-        'promptCount': len(prompts), 'samplesPerPrompt': samples_per_prompt,
+        'enginesStoppedEarly': stopped_early,
+        'promptCount': len(prompts), 'samplesPerPrompt': samples_per_prompt, 'samplesPlanned': total,
         'siteProfile': {'title': profile.title, 'description': profile.description, 'keyPages': [p['url'] for p in profile.pages]},
         'prompts': prompts, 'results': results, 'summary': summary,
         'durationSeconds': round(time.time() - started, 1),
