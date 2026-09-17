@@ -113,15 +113,15 @@
       "type": "string",
       "editor": "textfield",
       "isSecret": true,
-      "description": "Enables the Gemini engine (Google Search grounding when your key has grounding quota) and generates the questions when no OpenAI key is given. A free Google AI Studio key works but is small (observed Sept 2026: 20 requests per day per model, no grounding): keep Number of prompts x Samples per prompt at or below about 15 for a free key, or use a paid Gemini key for the default 30 x 3. Rate limits are waited out and the Actor switches to another Flash model when one is exhausted."
+      "description": "Enables the Gemini engine (with Google Search grounding when your key has grounding quota) and generates the questions when no OpenAI key is given. Paid tier (billing enabled in Google AI Studio): a default 30 x 3 audit costs about $0.20 in Gemini 3.x Flash tokens and grounding is within the 5,000 free searches per month (Sept 2026 prices). Free tier is small (observed: 20 requests per day per model, no grounding): keep prompts x samples at or below about 15."
     },
     "geminiModel": {
       "title": "Gemini model",
       "type": "string",
       "editor": "textfield",
-      "default": "gemini-2.5-flash",
-      "prefill": "gemini-2.5-flash",
-      "description": "Gemini model for the Gemini engine and (without an OpenAI key) prompt generation. Falls back to gemini-2.0-flash / gemini-flash-latest if the model is not available."
+      "default": "gemini-flash-latest",
+      "prefill": "gemini-flash-latest",
+      "description": "Gemini model for the Gemini engine and (without an OpenAI key) prompt generation. 'gemini-flash-latest' is Google's alias for the newest stable Flash; if a model is retired, overloaded or has no quota on your key, the Actor switches to another available Flash model automatically."
     },
     "mockMode": {
       "title": "Mock mode (no API calls)",

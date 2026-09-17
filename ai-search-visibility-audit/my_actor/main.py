@@ -59,7 +59,7 @@ async def main() -> None:
             website_url=website, brand=brand, aliases=aliases, competitors=competitors, description=description,
             prompt_count=prompt_count, samples_per_prompt=samples, engines=engines, keys=keys,
             openai_model=str(inp.get('openaiModel') or 'gpt-4o-mini'), mock=mock,
-            gemini_model=str(inp.get('geminiModel') or 'gemini-2.5-flash'),
+            gemini_model=str(inp.get('geminiModel') or 'gemini-flash-latest'),
             logger=lambda m: Actor.log.info(m), progress=progress,
         )
         if not audit['engines']:

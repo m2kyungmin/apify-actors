@@ -221,7 +221,7 @@ class PerplexityClient:
         return text, [c for c in citations if c], self.model
 
 
-GEMINI_MODEL_FALLBACKS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest']
+GEMINI_MODEL_FALLBACKS = ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-2.5-flash']
 
 
 def _gemini_version(name: str) -> tuple[float, int]:
@@ -243,7 +243,7 @@ class GeminiClient:
     Google Search grounding has its own (sometimes zero) free quota; when it is exhausted the client
     keeps sampling without grounding and says so in the model label."""
 
-    def __init__(self, api_key: str, model: str = 'gemini-2.5-flash', logger: Logger = print) -> None:
+    def __init__(self, api_key: str, model: str = 'gemini-flash-latest', logger: Logger = print) -> None:
         self.model = model
         self.api_key = api_key
         self.logger = logger
@@ -581,7 +581,7 @@ def run_audit(
     keys: dict[str, str],
     openai_model: str,
     mock: bool,
-    gemini_model: str = 'gemini-2.5-flash',
+    gemini_model: str = 'gemini-flash-latest',
     logger: Logger = print,
     progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
