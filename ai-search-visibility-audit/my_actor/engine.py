@@ -16,6 +16,7 @@ import random
 import re
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urljoin, urlsplit
@@ -252,9 +253,31 @@ class GeminiClient:
         self._available: list[str] | None = None
         self.grounding = True
         self._logged_429 = False
+        # Grounding sources come back as vertexaisearch.cloud.google.com redirect links; resolve them to
+        # the real page (302 Location) so citation domains mean something. Cached per link.
+        self._redirects: dict[str, str] = {}
+        self._resolver = httpx.Client(timeout=8, follow_redirects=False, headers={'User-Agent': 'Mozilla/5.0 (compatible; ai-visibility-audit)'})
 
     def close(self) -> None:
         self._client.close()
+        self._resolver.close()
+
+    def _resolve_citation(self, uri: str, title: str) -> str:
+        if 'grounding-api-redirect' not in uri:
+            return uri
+        if uri in self._redirects:
+            return self._redirects[uri]
+        resolved = ''
+        try:
+            response = self._resolver.head(uri)
+            if response.status_code in (301, 302, 303, 307, 308):
+                resolved = response.headers.get('location', '')
+        except httpx.HTTPError:
+            resolved = ''
+        if not resolved and re.fullmatch(r'[a-z0-9.-]+\.[a-z]{2,}', (title or '').strip().lower()):
+            resolved = f'https://{title.strip().lower()}/'   # Gemini puts the source domain in the chunk title
+        self._redirects[uri] = resolved or uri
+        return self._redirects[uri]
 
     def _list_models(self) -> list[str]:
         if self._available is None:
@@ -388,11 +411,14 @@ class GeminiClient:
         else:
             data = self._generate({'contents': contents})
         text, candidate = self._text(data)
-        citations = []
-        for chunk in (candidate.get('groundingMetadata') or {}).get('groundingChunks', []) or []:
-            uri = (chunk.get('web') or {}).get('uri')
-            if uri:
-                citations.append(uri)
+        chunks = [(chunk.get('web') or {}) for chunk in (candidate.get('groundingMetadata') or {}).get('groundingChunks', []) or []]
+        chunks = [c for c in chunks if c.get('uri')]
+        citations: list[str] = []
+        if chunks:
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                for resolved in pool.map(lambda c: self._resolve_citation(c['uri'], c.get('title', '')), chunks):
+                    if resolved and resolved not in citations:
+                        citations.append(resolved)
         return text, citations, f'{self.model}+google_search' if self.grounding else f'{self.model}+no_search'
 
 
