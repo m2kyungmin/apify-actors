@@ -42,6 +42,25 @@ Perplexity, or Google.
 5. **Report** – `REPORT.html` in the run's key-value store, plus one `audit`
    summary item and one `promptResult` item per answer in the dataset.
 
+## Example: what an audit surfaces
+
+A September 2026 audit of **apify.com** (Gemini with Google Search grounding,
+30 questions × 3 samples, competitors Bright Data, ScrapingBee, Zyte):
+
+- Apify was named in **48%** of answers (95% CI 38–58%), on average in
+  position 1.4 when named; share of voice 36% vs Bright Data 33%.
+- Only **18%** of answers cited apify.com as a source. The domains the engine
+  leaned on most were brightdata.com (29 answers), grepsr.com (26),
+  octoparse.com (22) and scrapingbee.com (21) — competitor content, not the
+  brand's own pages.
+- **`use-apify.com`**, a third-party guide site that describes itself as
+  "independent, not owned by Apify", was cited in 14 answers — almost as often
+  as the official site (16). AI engines were sourcing Apify's pricing and
+  product claims from a lookalike domain the brand does not control. That is
+  exactly the kind of finding the **Most cited sources** table exists for:
+  check what such sites say about you, and make sure the official pages give
+  engines something better to cite.
+
 ## How to use it
 
 1. Enter your **Website URL** and **Brand name**; add **Competitors** to
