@@ -2,13 +2,13 @@
   "$schema": "https://apify.com/schemas/v1/actor.ide.json",
   "actorSpecification": 1,
   "name": "ads-transparency-scraper",
-  "title": "Google Ads Transparency Scraper: Ad Copy OCR",
-  "description": "See every ad a competitor runs on Google: search advertisers by name or domain and pull hundreds of ads per run, no browser. Each ad has creative text (OCR for image ads), format, regions, first/last shown dates, video IDs and advertiser details. JSON/CSV export, API, weekly schedules.",
+  "title": "Google Ads Transparency Center Scraper: Ad Library",
+  "description": "Scrape the Google Ads Transparency Center, Google's ad library: every ad a brand, domain or advertiser ID runs, with ad copy (OCR for image-only text ads), format, image/video, regions, first/last shown and days active. No login or browser. From $2 per 1,000 ads. JSON/CSV, API, schedules.",
   "version": "0.1",
   "buildTag": "latest",
   "meta": {
     "templateId": "python-start",
-    "generatedBy": "claude-code"
+    "generatedBy": "Claude Code with Claude Opus 5.5"
   },
   "inputSchema": "./input_schema.json",
   "outputSchema": "./output_schema.json",
