@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import re
 import secrets
+from collections import Counter
 from datetime import UTC, datetime
 from typing import Any
 
@@ -100,8 +101,20 @@ async def main() -> None:
             profile_posts_doc_id=doc_id,
             logger=lambda message: Actor.log.debug(message),
         )
-        totals = {'posts': 0, 'profiles': 0, 'failedSources': 0, 'sources': len(profiles) + len(post_urls) + len(queries)}
+        totals = {'posts': 0, 'profiles': 0, 'failedSources': 0, 'emptySearches': 0, 'sources': len(profiles) + len(post_urls) + len(queries)}
         seen_posts: set[str] = set()
+        # Why sources produced nothing: 'not_found' / 'invalid_input' are the user's input, 'blocked' / 'error' are ours.
+        reasons: Counter[str] = Counter()
+
+        def note(exc: BaseException) -> None:
+            if isinstance(exc, ThreadsNotFound):
+                reasons['not_found'] += 1
+            elif isinstance(exc, ValueError):
+                reasons['invalid_input'] += 1
+            elif isinstance(exc, ThreadsBlocked):
+                reasons['blocked'] += 1
+            else:
+                reasons['error'] += 1
 
         async def push_post(raw: dict[str, Any], source: str, *, extra: dict[str, Any] | None = None) -> bool:
             record = normalize_post(raw)
@@ -137,6 +150,7 @@ async def main() -> None:
                 username = info['username']
                 user, first_posts, cursor, session = await asyncio.to_thread(client.get_profile, username)
             except (ThreadsError, ValueError) as exc:
+                note(exc)
                 totals['failedSources'] += 1
                 Actor.log.warning(f'Profile {value!r} failed and was not charged: {exc}')
                 return True
@@ -185,6 +199,7 @@ async def main() -> None:
                     raise ValueError('expected a post URL like https://www.threads.com/@user/post/CODE')
                 post, replies = await asyncio.to_thread(client.get_post, info['username'], info['code'])
             except (ThreadsError, ValueError) as exc:
+                note(exc)
                 totals['failedSources'] += 1
                 Actor.log.warning(f'Post {value!r} failed and was not charged: {exc}')
                 return True
@@ -201,11 +216,19 @@ async def main() -> None:
         async def run_search(query: str) -> bool:
             try:
                 posts = await asyncio.to_thread(client.search_posts, query)
+            except ThreadsNotFound:
+                # Threads shows a login wall instead of results for some queries.
+                totals['emptySearches'] += 1
+                Actor.log.warning(f'Search {query!r}: Threads shows no results to logged-out visitors for this query (not charged)')
+                return True
             except (ThreadsError, ValueError) as exc:
+                note(exc)
                 totals['failedSources'] += 1
                 Actor.log.warning(f'Search {query!r} failed and was not charged: {exc}')
                 return True
             Actor.log.info(f'Search {query!r}: {len(posts)} posts')
+            if not posts:
+                totals['emptySearches'] += 1
             for post in posts:
                 if not await push_post(post, f'search:{query}'):
                     return False
@@ -228,14 +251,33 @@ async def main() -> None:
                     if not ok:
                         break
         except ThreadsBlocked as exc:
+            reasons['blocked'] += 1
             Actor.log.error(f'Threads blocked the requests: {exc}')
         finally:
             client.close()
 
+        totals['failureReasons'] = dict(reasons)
         await Actor.set_value('SUMMARY', totals)
         Actor.log.info(f'Finished: {totals}')
         if not (totals['posts'] or totals['profiles']):
-            raise RuntimeError('No public Threads data was collected. Check the handles/URLs or retry with Apify Proxy enabled.')
+            if reasons['blocked'] or reasons['error']:
+                await Actor.fail(status_message=(
+                    'Threads blocked or rejected the requests, so nothing was collected (not charged). This is usually '
+                    'temporary: retry in a few minutes with Apify Proxy enabled (the default).'))
+                return
+            # Only input problems (missing/private profile or post, unrecognised URL) or login-walled searches:
+            # finish cleanly with an explicit message instead of a failure that invites blind retries.
+            details = []
+            if reasons['not_found']:
+                details.append(f"{reasons['not_found']} profile/post not found or not public on Threads")
+            if reasons['invalid_input']:
+                details.append(f"{reasons['invalid_input']} input(s) not recognised as a Threads @handle or URL")
+            if totals['emptySearches']:
+                details.append(f"{totals['emptySearches']} search(es) that Threads shows only to logged-in users")
+            message = ('No results: ' + '; '.join(details or ['nothing public matched the input']) +
+                       '. Nothing was charged. Retrying the same input will give the same result - check the handles/URLs or try other keywords.')
+            Actor.log.warning(message)
+            await Actor.set_status_message(message, is_terminal=True)
 
 
 if __name__ == '__main__':

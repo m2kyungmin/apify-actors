@@ -9,7 +9,7 @@
       "type": "array",
       "editor": "stringList",
       "prefill": ["modern kitchen design"],
-      "description": "Keywords to search on Pinterest, one per line. Each query returns up to 'Maximum pins per source' public pins (or boards/profiles when the search scope is changed)."
+      "description": "Keywords to search on Pinterest, one per line. Each query returns up to 'Maximum pins per source' public pins (or boards/profiles when the search scope is changed). Pinterest URLs pasted here (pins, boards, profiles, pin.it links) are automatically treated as Start URLs."
     },
     "searchScope": {
       "title": "Search scope",

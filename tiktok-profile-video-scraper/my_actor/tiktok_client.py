@@ -34,6 +34,10 @@ class TikTokBlocked(TikTokError):
     """TikTok returned a challenge, rate limit, or access block."""
 
 
+class TikTokNotFound(TikTokError):
+    """TikTok answered, but the profile or video does not exist or is not public (non-zero statusCode)."""
+
+
 def normalize_username(value: str) -> str:
     username = value.strip().lstrip('@')
     if not username or '/' in username or '?' in username:
@@ -94,7 +98,7 @@ def parse_profile_html(html: str, username: str) -> dict[str, Any]:
     if not isinstance(detail, dict):
         raise TikTokError('TikTok profile state was not found in the public page.')
     if _as_int(detail.get('statusCode')) not in {None, 0}:
-        raise TikTokError(f'TikTok profile returned status {detail.get("statusCode")}: {detail.get("statusMsg", "")}')
+        raise TikTokNotFound(f'TikTok says this profile is unavailable (status {detail.get("statusCode")}: {detail.get("statusMsg", "")})')
     info = detail.get('userInfo')
     if not isinstance(info, dict):
         raise TikTokError('TikTok profile did not contain user information.')
@@ -124,6 +128,9 @@ def parse_video_html(html: str, source_url: str) -> dict[str, Any]:
     detail = _scope_from_html(html).get('webapp.video-detail')
     if not isinstance(detail, dict):
         raise TikTokError('TikTok video state was not found in the public page.')
+    if _as_int(detail.get('statusCode')) not in {None, 0}:
+        # e.g. 10204 "item doesn't exist" for deleted or private videos
+        raise TikTokNotFound(f'TikTok says this video is unavailable (status {detail.get("statusCode")}: {detail.get("statusMsg", "")})')
     item_info = detail.get('itemInfo') if isinstance(detail.get('itemInfo'), dict) else {}
     item = item_info.get('itemStruct') if isinstance(item_info.get('itemStruct'), dict) else {}
     if not item:
