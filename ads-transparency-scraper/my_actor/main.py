@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from datetime import datetime, timedelta
 from typing import Any
@@ -44,6 +45,45 @@ def _as_list(value: Any) -> list[str]:
     return [str(v).strip() for v in value if str(v).strip()]
 
 
+_CORPORATE_SUFFIXES = {
+    'inc', 'incorporated', 'llc', 'ltd', 'limited', 'plc', 'gmbh', 'ag', 'sa', 'sas', 'sarl', 'srl', 'spa', 'bv', 'nv',
+    'oy', 'ab', 'as', 'aps', 'kk', 'co', 'corp', 'corporation', 'company', 'group', 'holdings', 'pty', 'pte', 's', 'r', 'o',
+}
+
+
+def _normalize_name(value: str) -> list[str]:
+    words = re.sub(r'[^0-9a-z]+', ' ', value.lower()).split()
+    while words and words[-1] in _CORPORATE_SUFFIXES:
+        words.pop()
+    return words
+
+
+def _name_match_rank(query: str, name: str) -> int:
+    """0 = same name (ignoring legal suffixes), 1 = name starts with the query words, 2 = query words appear in
+    the name, 3 = only a substring match (e.g. "tesco" inside "tescoma") or no match."""
+    q, n = _normalize_name(query), _normalize_name(name)
+    if not q or not n:
+        return 3
+    if n == q:
+        return 0
+    if n[:len(q)] == q:
+        return 1
+    if any(n[i:i + len(q)] == q for i in range(len(n) - len(q) + 1)):
+        return 2
+    return 3
+
+
+def _fallback_domain(query: str, suggested: list[str]) -> str | None:
+    """When no advertiser account matches, use the suggested domain that clearly belongs to the query."""
+    key = ''.join(_normalize_name(query))
+    labels = [(d.lower(), re.sub(r'[^0-9a-z]', '', d.lower().split('.')[0])) for d in suggested or [] if d]
+    for exact in (True, False):
+        for domain, label in labels:
+            if key and (label == key if exact else key in label):
+                return domain
+    return None
+
+
 class Settings:
     def __init__(self, inp: dict) -> None:
         self.max_ads = int(inp.get('maxAdsPerAdvertiser') or 100)
@@ -51,6 +91,8 @@ class Settings:
         self.topic = (inp.get('topic') or 'ALL').upper()
         self.include_text = bool(inp.get('includeAdText', True))
         self.ocr = bool(inp.get('ocrAdText', True))
+        # Ads enriched at once. Only the CDN asset GETs overlap - RPC calls to Google stay sequential.
+        self.concurrency = max(1, min(8, int(inp.get('adTextConcurrency') or 4)))
         self.debug = bool(inp.get('debug', False))
         self.start = _yyyymmdd(inp.get('startDate'))
         end = _yyyymmdd(inp.get('endDate'))
@@ -59,10 +101,12 @@ class Settings:
             end = int((datetime.strptime(str(end), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d'))
         self.end = end
         self.regions: list[int] = []
+        self.region_codes: set[str] = set()
         for code in _as_list(inp.get('regions')):
             geo = GEO.get(code.upper())
             if geo:
                 self.regions.append(geo)
+                self.region_codes.add(code.upper())
             else:
                 Actor.log.warning(f'Unknown region code "{code}" - skipped. Use ISO alpha-2 codes like US, GB, DE.')
 
@@ -107,6 +151,43 @@ async def enrich_ad(api: AdsTransparency, item: dict, s: Settings) -> dict | Non
     return extra
 
 
+async def enrich_page(
+    api: AdsTransparency, items: list[dict], s: Settings, *, label: str, concurrency: int, stop,
+) -> list[dict | None]:
+    """Run enrich_ad for a page of ads, at most `concurrency` at a time. Returns extras in item order.
+
+    Google's RPC endpoint is still called one request at a time (the client serialises it); the
+    overlap comes from the preview-script and screenshot GETs, which wait on Google's CDN.
+    A Blocked wall stops the page: tasks not started yet are skipped and the error is re-raised.
+    """
+    sem = asyncio.Semaphore(concurrency)
+    extras: list[dict | None] = [None] * len(items)
+    done = 0
+    blocked = False
+
+    async def one(i: int, item: dict) -> None:
+        nonlocal done, blocked
+        async with sem:
+            if blocked or stop():
+                return
+            try:
+                extras[i] = await enrich_ad(api, item, s)
+            except Blocked:
+                blocked = True
+                raise
+            except Exception as exc:  # noqa: BLE001 - ad copy is best-effort, one bad ad must not sink the page
+                Actor.log.warning(f'{item.get("creativeId")}: ad text failed ({exc!r})')
+            done += 1
+            if done % 10 == 0 or done == len(items):
+                Actor.log.info(f'{label} ad text {done}/{len(items)}')
+
+    results = await asyncio.gather(*(one(i, item) for i, item in enumerate(items)), return_exceptions=True)
+    for r in results:
+        if isinstance(r, Blocked):
+            raise r
+    return extras
+
+
 async def collect_ads(
     api: AdsTransparency,
     budget: Budget,
@@ -136,17 +217,15 @@ async def collect_ads(
         if domain:
             for item in items:
                 item['queryDomain'] = domain
-        if s.include_text:
-            for item in items:
-                if budget.limit_reached:
-                    break
-                extra = await enrich_ad(api, item, s)
-                if extra is None:
-                    continue
-                if not await budget.charge(EVENT_AD_TEXT, 1):
-                    break
+        if s.include_text and not budget.limit_reached:
+            extras = await enrich_page(api, items, s, label=f'{label}: page {page}', concurrency=s.concurrency,
+                                       stop=lambda: budget.limit_reached)
+            hits = [(item, extra) for item, extra in zip(items, extras) if extra]
+            # One charge call per page keeps the events in dataset order and stops at the run's limit.
+            accepted = await budget.charge(EVENT_AD_TEXT, len(hits))
+            for item, extra in hits[:accepted]:
                 item.update(extra)
-                totals['adTexts'] += 1
+            totals['adTexts'] += accepted
         if items:
             await Actor.push_data(items)
             collected += len(items)
@@ -204,14 +283,21 @@ async def main() -> None:
                     + '; '.join(f'{a["advertiserName"]}[{a.get("region")}] ~{a.get("adsCountMax")}' for a in advertisers[:10])
                 )
                 if not advertisers:
-                    Actor.log.warning(f'No advertisers found for "{query}" (domains suggested: {suggested_domains[:5]})')
+                    fallback = _fallback_domain(query, suggested_domains)
+                    if fallback and fallback not in domains:
+                        Actor.log.warning(f'No advertiser account is named "{query}"; using Google\'s suggested domain '
+                                          f'{fallback} instead (ads from every advertiser linking to it)')
+                        domains.append(fallback)
+                    else:
+                        Actor.log.warning(f'No advertisers found for "{query}" (domains suggested: {suggested_domains[:5]})')
                     continue
-                # Google returns fuzzy matches; prefer verified advertisers with the most ads (the real brand).
-                q = query.strip().lower()
+                # Google returns fuzzy matches ("Tesco" also finds "TESCOMA s.r.o."). Prefer the advertiser whose
+                # name matches the query as a word, then verified accounts, then the requested regions, then size.
                 advertisers.sort(key=lambda a: (
+                    _name_match_rank(query, a.get('advertiserName') or ''),
                     a.get('isUnverified', False),
+                    bool(s.region_codes) and (a.get('region') or '').upper() not in s.region_codes,
                     -(a.get('adsCountMax') or 0),
-                    (a.get('advertiserName') or '').strip().lower() != q,
                 ))
                 picked = advertisers[:max_advertisers]
                 Actor.log.info(
