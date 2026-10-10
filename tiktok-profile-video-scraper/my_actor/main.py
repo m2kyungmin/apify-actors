@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import secrets
+from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 
 from apify import Actor
 
-from .tiktok_client import TikTokBlocked, TikTokClient, TikTokError, normalize_username, normalize_video_url
+from .tiktok_client import TikTokBlocked, TikTokClient, TikTokError, TikTokNotFound, normalize_username, normalize_video_url
 
 EVENT_RESULT = 'result'
 
@@ -43,10 +44,20 @@ def _strings(value: Any) -> list[str]:
 async def main() -> None:
     async with Actor:
         inp = await Actor.get_input() or {}
-        usernames = [normalize_username(value) for value in _strings(inp.get('usernames'))]
-        video_urls = [normalize_video_url(value) for value in _strings(inp.get('videoUrls'))]
-        if not usernames and not video_urls:
+        raw_usernames, raw_videos = _strings(inp.get('usernames')), _strings(inp.get('videoUrls'))
+        if not raw_usernames and not raw_videos:
             raise ValueError('Provide at least one username or public TikTok video URL.')
+        # One malformed entry must not sink the whole list: skip it with a warning and keep the rest.
+        reasons: Counter[str] = Counter()
+        usernames: list[str] = []
+        video_urls: list[str] = []
+        for values, normalize, target in ((raw_usernames, normalize_username, usernames), (raw_videos, normalize_video_url, video_urls)):
+            for value in values:
+                try:
+                    target.append(normalize(value))
+                except ValueError as exc:
+                    reasons['invalid_input'] += 1
+                    Actor.log.warning(f'Skipping {value!r}: {exc}')
 
         requested = max(1, min(100, int(inp.get('maxItems') or 20)))
         budget = Budget()
@@ -74,10 +85,17 @@ async def main() -> None:
                 item = await (client.get_profile(value) if kind == 'profile' else client.get_video(value))
             except TikTokBlocked as exc:
                 totals['failed'] += 1
+                reasons['blocked'] += 1
                 Actor.log.warning(f'{kind} {value!r} was blocked and was not charged: {exc}')
+                continue
+            except TikTokNotFound as exc:
+                totals['failed'] += 1
+                reasons['not_found'] += 1
+                Actor.log.warning(f'{kind} {value!r} is not available and was not charged: {exc}')
                 continue
             except TikTokError as exc:
                 totals['failed'] += 1
+                reasons['error'] += 1
                 Actor.log.warning(f'{kind} {value!r} could not be parsed and was not charged: {exc}')
                 continue
 
@@ -89,6 +107,20 @@ async def main() -> None:
             totals[f'{kind}s'] += 1
             Actor.log.info(f'Collected {kind} {value!r} ({totals["results"]}/{available})')
 
+        totals['failureReasons'] = dict(reasons)
         await Actor.set_value('SUMMARY', totals)
         if totals['results'] == 0:
-            raise RuntimeError('No public TikTok data was collected. Retry later or enable a proxy if TikTok served a WAF challenge.')
+            if reasons['blocked'] or reasons['error']:
+                await Actor.fail(status_message=(
+                    'TikTok blocked or changed the public pages, so nothing was collected (not charged). Blocks are usually '
+                    'temporary: retry later with Apify Proxy enabled.'))
+                return
+            details = []
+            if reasons['not_found']:
+                details.append(f"{reasons['not_found']} profile/video deleted, private or not found on TikTok")
+            if reasons['invalid_input']:
+                details.append(f"{reasons['invalid_input']} entr(y/ies) not a valid username or https://www.tiktok.com/@user/video/<id> URL")
+            message = ('No results: ' + '; '.join(details or ['nothing public matched the input']) +
+                       '. Nothing was charged. Retrying the same input will give the same result - check the usernames/URLs.')
+            Actor.log.warning(message)
+            await Actor.set_status_message(message, is_terminal=True)
