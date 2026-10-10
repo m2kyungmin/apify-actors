@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import Counter
 import re
 import secrets
 from datetime import UTC, datetime
@@ -61,6 +62,11 @@ def _strings(value: Any) -> list[str]:
     return out
 
 
+def _looks_like_url(text: str) -> bool:
+    lowered = text.lower()
+    return lowered.startswith(('http://', 'https://', 'www.', 'pin.it/')) or 'pinterest.' in lowered
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -70,6 +76,13 @@ async def main() -> None:
         inp = await Actor.get_input() or {}
         queries = _strings(inp.get('searchQueries'))
         start_urls = _strings(inp.get('startUrls'))
+        # Users often paste pin/board/profile URLs into searchQueries; searching
+        # for a URL returns nothing, so treat those entries as startUrls.
+        url_queries = [q for q in queries if _looks_like_url(q)]
+        if url_queries:
+            queries = [q for q in queries if q not in url_queries]
+            start_urls += [u for u in url_queries if u not in start_urls]
+            Actor.log.info(f'Moved {len(url_queries)} URL(s) from searchQueries to startUrls')
         if not queries and not start_urls:
             raise ValueError('Provide at least one search query in searchQueries or one Pinterest URL in startUrls.')
 
@@ -109,6 +122,18 @@ async def main() -> None:
         )
         totals = {'pins': 0, 'boards': 0, 'profiles': 0, 'failedSources': 0, 'failedPins': 0, 'sources': len(queries) + len(start_urls)}
         seen_pins: set[str] = set()
+        # Why sources produced nothing: 'not_found' / 'invalid_input' are the user's input, 'blocked' / 'error' are ours.
+        reasons: Counter[str] = Counter()
+
+        def note(exc: BaseException) -> None:
+            if isinstance(exc, PinterestNotFound):
+                reasons['not_found'] += 1
+            elif isinstance(exc, ValueError):
+                reasons['invalid_input'] += 1
+            elif isinstance(exc, PinterestBlocked):
+                reasons['blocked'] += 1
+            else:
+                reasons['error'] += 1
 
         async def push_pin(raw: dict[str, Any], source: str, *, enrich: bool) -> bool:
             """Normalise, optionally enrich, charge and store one pin. Returns False when the budget is exhausted."""
@@ -165,6 +190,7 @@ async def main() -> None:
                     lambda: list(client.iter_search(query, scope=search_scope, max_items=allowed))
                 )
             except (PinterestError, ValueError) as exc:
+                note(exc)
                 totals['failedSources'] += 1
                 Actor.log.warning(f'Search {query!r} ({search_scope}) failed and was not charged: {exc}')
                 return True
@@ -186,6 +212,7 @@ async def main() -> None:
                 if info['kind'] == 'short':
                     info = parse_pinterest_url(await asyncio.to_thread(client.resolve_short_url, info['url']))
             except (ValueError, PinterestError) as exc:
+                note(exc)
                 totals['failedSources'] += 1
                 Actor.log.warning(f'URL {url!r} skipped: {exc}')
                 return True
@@ -199,6 +226,7 @@ async def main() -> None:
                 try:
                     raw = await asyncio.to_thread(client.get_pin, info['pinId'])
                 except (PinterestError, ValueError) as exc:
+                    note(exc)
                     totals['failedPins'] += 1
                     Actor.log.warning(f'Pin {url!r} failed and was not charged: {exc}')
                     return True
@@ -208,6 +236,7 @@ async def main() -> None:
                 try:
                     board = await asyncio.to_thread(client.get_board, info['username'], info['slug'])
                 except (PinterestError, ValueError) as exc:
+                    note(exc)
                     totals['failedSources'] += 1
                     Actor.log.warning(f'Board {url!r} failed and was not charged: {exc}')
                     return True
@@ -222,6 +251,7 @@ async def main() -> None:
                         lambda: list(client.iter_board_pins(board['id'], info['boardUrl'], max_items=allowed))
                     )
                 except PinterestError as exc:
+                    note(exc)
                     totals['failedSources'] += 1
                     Actor.log.warning(f'Board feed for {url!r} failed and was not charged: {exc}')
                     return True
@@ -235,6 +265,7 @@ async def main() -> None:
             try:
                 user = await asyncio.to_thread(client.get_user, info['username'])
             except (PinterestError, ValueError) as exc:
+                note(exc)
                 totals['failedSources'] += 1
                 Actor.log.warning(f'Profile {url!r} failed and was not charged: {exc}')
                 return True
@@ -252,6 +283,7 @@ async def main() -> None:
                     lambda: list(client.iter_user_pins(info['username'], kind=kind, max_items=allowed))
                 )
             except PinterestError as exc:
+                note(exc)
                 totals['failedSources'] += 1
                 Actor.log.warning(f'Profile pins for {url!r} failed and were not charged: {exc}')
                 return True
@@ -270,14 +302,31 @@ async def main() -> None:
                     if not await run_url(url):
                         break
         except PinterestBlocked as exc:
+            reasons['blocked'] += 1
             Actor.log.error(f'Pinterest blocked the requests: {exc}')
         finally:
             client.close()
 
-        await Actor.set_value('SUMMARY', totals)
         Actor.log.info(f'Finished: {totals}')
+        totals['failureReasons'] = dict(reasons)
+        await Actor.set_value('SUMMARY', totals)
         if not (totals['pins'] or totals['boards'] or totals['profiles']):
-            raise RuntimeError('No public Pinterest data was collected. Check the queries/URLs or retry with Apify Proxy enabled.')
+            if reasons['blocked'] or reasons['error']:
+                await Actor.fail(status_message=(
+                    'Pinterest blocked or rejected the requests, so nothing was collected (not charged). This is usually '
+                    'temporary: retry in a few minutes with Apify Proxy enabled (the default).'))
+                return
+            # Every source was the user's input problem (deleted/private profile, bad URL) or an empty search:
+            # finish cleanly with an explicit message instead of a failure that invites blind retries.
+            details = []
+            if reasons['not_found']:
+                details.append(f"{reasons['not_found']} profile/board/pin not found on Pinterest (deleted, renamed or private)")
+            if reasons['invalid_input']:
+                details.append(f"{reasons['invalid_input']} URL(s) not recognised as public Pinterest pages")
+            message = ('No results: ' + '; '.join(details or ['the searches returned no public pins']) +
+                       '. Nothing was charged. Retrying the same input will give the same result - check the usernames/URLs.')
+            Actor.log.warning(message)
+            await Actor.set_status_message(message, is_terminal=True)
 
 
 if __name__ == '__main__':
