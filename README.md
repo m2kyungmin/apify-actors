@@ -5,7 +5,7 @@ Source code of the pay-per-event web scrapers and tools published on the [Apify 
 | Actor | Store page |
 |---|---|
 | [Telegram Channel Scraper: Posts, Views, Reactions](./telegram-channel-scraper/) | [apify.com/kyungminlee/telegram-channel-scraper](https://apify.com/kyungminlee/telegram-channel-scraper) |
-| [Google Ads Transparency Scraper: Ad Copy OCR](./ads-transparency-scraper/) | [apify.com/kyungminlee/ads-transparency-scraper](https://apify.com/kyungminlee/ads-transparency-scraper) |
+| [Google Ads Transparency Center Scraper: Ad Library](./ads-transparency-scraper/) | [apify.com/kyungminlee/ads-transparency-scraper](https://apify.com/kyungminlee/ads-transparency-scraper) |
 | [Google Trends Scraper: Trending Now & Regions](./google-trends-scraper/) | [apify.com/kyungminlee/google-trends-scraper](https://apify.com/kyungminlee/google-trends-scraper) |
 | [YouTube Channel Transcript Scraper: Bulk Subtitles](./youtube-transcript-scraper/) | [apify.com/kyungminlee/youtube-transcript-scraper](https://apify.com/kyungminlee/youtube-transcript-scraper) |
 | [LinkedIn Jobs Scraper: Full Descriptions, No Login](./linkedin-jobs-scraper/) | [apify.com/kyungminlee/linkedin-jobs-scraper](https://apify.com/kyungminlee/linkedin-jobs-scraper) |

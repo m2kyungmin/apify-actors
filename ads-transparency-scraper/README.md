@@ -1,12 +1,16 @@
-# Google Ads Transparency Scraper: Ad Copy OCR
+# Google Ads Transparency Center Scraper: Ad Library
 
 > **Run it on Apify Store:** https://apify.com/kyungminlee/ads-transparency-scraper — pay per result, no setup. This folder is the Actor's source code (Python, `httpx`, Apify SDK).
 
 ## What does Google Ads Transparency Center Scraper do?
 
-**Google Ads Transparency Center Scraper** answers "what ads is this company running right now?" without a browser: search an advertiser by name or domain (or paste advertiser IDs/URLs) and get every ad Google shows in its public [Transparency Center](https://adstransparency.google.com), including text extracted from image ads by OCR, which the Center itself does not expose as text.
+**Google Ads Transparency Center Scraper** shows you **every ad a competitor runs on Google** — Search, YouTube, Display, Shopping and Maps — straight from Google's public ad library, the [Ads Transparency Center](https://adstransparency.google.com). Type a brand name or a domain (or paste advertiser IDs/URLs) and get each ad as a clean row: **the ad copy**, format, image or video, the countries it ran in, **first and last shown dates and how many days it has been running**. No login, no browser, no manual scrolling through cards.
 
-Each ad is one record: `adId`, `advertiserId`, `advertiserName`, `format` (text, image, video), `adText` / `ocrText`, `imageUrl`, `videoId`, `regions`, `firstShown`, `lastShown`, `topic` and `detailUrl`; advertiser records add legal name, verification and domain. Export JSON/CSV, call the API, or schedule weekly runs and pipe new creatives to Slack, Sheets or your ad-intelligence dashboard.
+The Transparency Center publishes Search text ads only as screenshots. This Actor **reads them with OCR**, so you get the headline and description as text you can search, compare and feed into a spreadsheet or LLM — the part you cannot copy from the site itself.
+
+**What it costs:** from **$2 per 1,000 ads**, plus $3 per 1,000 for extracted ad copy. Checking one competitor's 100 newest ads with copy costs about **$0.50**. You only pay for ads actually delivered.
+
+Each ad is one record: `adId`, `advertiserId`, `advertiserName`, `format` (text, image, video), `adText` / `ocrText`, `imageUrl`, `videoId`, `regions`, `firstShown`, `lastShown`, `daysShown`, `topic` and `detailUrl`; advertiser records add legal name, verification and domain. Export JSON/CSV/Excel, call the API, or schedule weekly runs and pipe new creatives to Slack, Sheets or your ad-intelligence dashboard.
 
 ## Why use Google Ads Transparency Center Scraper?
 
@@ -43,6 +47,7 @@ The best-matching advertiser for each query is chosen automatically (verified ad
 | `ocrAdText` | boolean | `true` | Read text ads (published only as screenshots) with OCR |
 | `includeAdvertiserInfo` | boolean | `true` | Add one advertiser profile item per advertiser |
 | `proxyConfiguration` | object | Apify Proxy on | Rotating IPs (recommended) |
+| `adTextConcurrency` | integer | `4` | Ads whose preview script / screenshot are downloaded at the same time (1–8); Google API calls stay sequential |
 
 Example:
 
@@ -100,7 +105,15 @@ You can download the dataset in various formats such as JSON, HTML, CSV, or Exce
 
 ## How much does it cost to scrape Google Ads Transparency Center?
 
-Pricing is **pay per event**: a small fee per ad, per extracted ad copy and per advertiser profile — no subscription. Scraping 1,000 ads with ad copy typically takes 2–4 minutes. Use **Max ads per advertiser**, the format filter and the date range to control cost; the Actor stops as soon as your run's maximum charge is reached.
+Pricing is **pay per event** — no subscription, no charge for ads that could not be fetched:
+
+| Event | Price | When it is charged |
+|---|---|---|
+| Ad | $2.00 per 1,000 | Every ad saved to the dataset |
+| Ad copy extracted | $3.00 per 1,000 | Ads whose text (OCR or HTML) or video ID was extracted |
+| Advertiser profile | $0.003 each | One per advertiser when **Include advertiser info** is on |
+
+Examples: one competitor's 100 newest ads with copy ≈ **$0.50**; 20 competitors × 100 ads ≈ **$10**; 1,000 ads without copy ≈ **$2**. Paid Apify plans get up to 30% off these prices automatically. Scraping 1,000 ads with ad copy typically takes 2–4 minutes. Use **Max ads per advertiser**, the format filter and the date range to control cost; the Actor stops as soon as your run's maximum charge is reached.
 
 ## Tips
 
@@ -108,6 +121,7 @@ Pricing is **pay per event**: a small fee per ad, per extracted ad copy and per 
 - Large advertisers (tens of thousands of ads) are returned newest first, so a small `maxAdsPerAdvertiser` gives you their current campaigns.
 - Schedule a weekly run with `startDate` set to last week to track only new ads.
 - Google shows a CAPTCHA wall after a few dozen requests from one IP. Apify Proxy is on by default and IPs are rotated automatically.
+- Ad copy is fetched for several ads at once (`adTextConcurrency`, default 4), but every call to Google's own API is still made one at a time with a short delay, so the extra speed does not raise the block risk. Set it to `1` if you keep seeing `blocked (HTTP 302)` warnings.
 
 ## FAQ and disclaimers
 
