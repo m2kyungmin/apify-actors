@@ -1,7 +1,3 @@
-# Telegram Channel Scraper: Posts, Views, Reactions
-
-> **Run it on Apify Store:** https://apify.com/kyungminlee/telegram-channel-scraper — pay per result, no setup. This folder is the Actor's source code (Python, `httpx`, Apify SDK).
-
 ## What does Telegram Channel Scraper do?
 
 **Telegram Channel Scraper** solves one problem: getting the posts of a public Telegram channel as structured data without a Telegram account, bot token or API key. It reads the public web preview ([t.me/s/channel](https://t.me/s/telegram)), so 100 posts of a channel arrive in about 10 seconds and nothing you own can be rate-limited or banned.

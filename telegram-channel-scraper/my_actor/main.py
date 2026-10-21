@@ -200,12 +200,17 @@ async def main() -> None:
                 Actor.log.warning(f'Ignoring invalid channel "{raw}" (private invite links are not supported)')
             elif name.lower() not in {c.lower() for c in channels}:
                 channels.append(name)
-        if not channels:
-            raise ValueError('Input "channels" must contain at least one public channel username or t.me URL.')
-
-        max_posts = int(actor_input.get('maxPostsPerChannel') or 50)
-        newer_than = parse_date_bound(actor_input.get('postsNewerThan'), end_of_day=False)
-        older_than = parse_date_bound(actor_input.get('postsOlderThan'), end_of_day=True)
+        try:
+            if not channels:
+                raise ValueError('Input "channels" must contain at least one public channel username or t.me URL.')
+            max_posts = int(actor_input.get('maxPostsPerChannel') or 50)
+            newer_than = parse_date_bound(actor_input.get('postsNewerThan'), end_of_day=False)
+            older_than = parse_date_bound(actor_input.get('postsOlderThan'), end_of_day=True)
+        except (ValueError, TypeError) as exc:
+            message = f'Input problem: {exc} Nothing was charged.'
+            Actor.log.error(message)
+            await Actor.set_status_message(message[:950], is_terminal=True)
+            return
         include_channel_info = bool(actor_input.get('includeChannelInfo', True))
         include_html = bool(actor_input.get('includeTextHtml', False))
 

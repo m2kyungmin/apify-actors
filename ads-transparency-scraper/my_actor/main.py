@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from apify import Actor
@@ -94,6 +94,8 @@ class Settings:
         # Ads enriched at once. Only the CDN asset GETs overlap - RPC calls to Google stay sequential.
         self.concurrency = max(1, min(8, int(inp.get('adTextConcurrency') or 4)))
         self.debug = bool(inp.get('debug', False))
+        self.only_new = bool(inp.get('onlyNewAds', False))
+        self.history_store_name = (inp.get('historyStoreName') or 'google-ads-monitor').strip()
         self.start = _yyyymmdd(inp.get('startDate'))
         end = _yyyymmdd(inp.get('endDate'))
         if end:
@@ -197,21 +199,57 @@ async def collect_ads(
     advertiser_id: str | None = None,
     domain: str | None = None,
     label: str,
+    history: dict | None = None,
+    summary: dict | None = None,
 ) -> int:
+    """Collect ads. With `history` (creativeId -> first-seen ISO time) only unseen ads are output/charged.
+    `max_ads` then limits ads scanned (newest first), and scanning stops after a page with nothing new."""
     collected = 0
+    scanned = 0
     cursor = None
     page = 0
-    while collected < s.max_ads and not budget.limit_reached:
+    stop_after_page = False
+    baseline_newest = history.get('newestFirstShown') if history is not None else None
+    now_iso = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    while scanned < s.max_ads and not budget.limit_reached:
         items, cursor, rng = await api.creatives_page(
             advertiser_id, domain=domain, fmt=None if s.fmt == 'ALL' else s.fmt, regions=s.regions or None,
-            start=s.start, end=s.end, topic=s.topic, page_size=min(40, s.max_ads - collected), cursor=cursor,
+            start=s.start, end=s.end, topic=s.topic, page_size=min(40, s.max_ads - scanned), cursor=cursor,
         )
         page += 1
         if page == 1:
             Actor.log.info(f'{label}: ~{rng[0]}-{rng[1]} ads match')
         if not items:
             break
-        items = items[: s.max_ads - collected]
+        items = items[: s.max_ads - scanned]
+        scanned += len(items)
+        if history is not None:
+            total_on_page = len(items)
+            ids = history['ids']
+            newest = baseline_newest
+            fresh: list[dict] = []
+            hit_seen = False
+            for it in items:  # newest first: stop at the first ad we already know
+                if it['creativeId'] in ids:
+                    hit_seen = True
+                    break
+                fs = it.get('firstShown')
+                if newest and fs and fs < newest:
+                    continue  # older than the newest ad of the last run: never "new"
+                fresh.append(it)
+            items = fresh
+            for it in items:
+                fs = it.get('firstShown')
+                if fs and (not summary['latestFirstShown'] or fs > summary['latestFirstShown']):
+                    summary['latestFirstShown'] = fs
+                if fs and (not history.get('newestFirstShown') or fs > history['newestFirstShown']):
+                    history['newestFirstShown'] = fs
+            if hit_seen:
+                stop_after_page = True
+            if not items:
+                Actor.log.info(f'{label}: page {page} has no new ads - stopping')
+                break
+            Actor.log.info(f'{label}: page {page}: {len(items)}/{total_on_page} ads are new')
         accepted = await budget.charge(EVENT_AD, len(items))
         items = items[:accepted]
         if domain:
@@ -227,12 +265,58 @@ async def collect_ads(
                 item.update(extra)
             totals['adTexts'] += accepted
         if items:
+            if history is not None:
+                for item in items:
+                    item['isNew'] = True
+                    item['firstSeenByMonitor'] = now_iso
             await Actor.push_data(items)
             collected += len(items)
+            if history is not None:
+                for item in items:
+                    history['ids'][item['creativeId']] = now_iso
+                if summary is not None:
+                    summary['newAds'] += len(items)
         Actor.log.info(f'{label}: page {page} -> {len(items)} ads (total {collected})')
-        if not cursor:
+        if not cursor or stop_after_page:
             break
     return collected
+
+
+class Monitor:
+    """Per-advertiser history of seen creative IDs in a named key-value store."""
+
+    def __init__(self, store: Any) -> None:
+        self.store = store
+
+    @staticmethod
+    def _key(kind: str, ident: str) -> str:
+        return re.sub(r'[^a-zA-Z0-9!\-_.\'()]', '_', f'seen-{kind}-{ident}')[:250]
+
+    async def run_target(self, api: AdsTransparency, budget: Budget, s: Settings, totals: dict, *, kind: str, ident: str,
+                         name: str, **kw: Any) -> int:
+        key = self._key(kind, ident)
+        history = await self.store.get_value(key) or {}
+        if 'ids' not in history:
+            history = {'ids': history, 'newestFirstShown': None}
+        seen_before = len(history['ids'])
+        summary = {'newAds': 0, 'latestFirstShown': None}
+        try:
+            return await collect_ads(api, budget, s, totals, label=name, history=history, summary=summary, **kw)
+        finally:
+            # Persist whatever was delivered, even when Google blocked part-way.
+            await self.store.set_value(key, history)
+            await Actor.push_data({
+                'type': 'advertiser-summary',
+                'recordType': 'advertiser-summary',
+                'advertiserId': ident if kind == 'advertiser' else None,
+                'queryDomain': ident if kind == 'domain' else None,
+                'advertiserName': name,
+                'newAds': summary['newAds'],
+                'totalSeen': len(history['ids']),
+                'seenBeforeThisRun': seen_before,
+                'latestFirstShown': summary['latestFirstShown'],
+                'firstRun': seen_before == 0,
+            })
 
 
 async def main() -> None:
@@ -248,7 +332,11 @@ async def main() -> None:
                 Actor.log.warning(f'No advertiser ID found in URL: {url}')
         domains = [re.sub(r'^https?://', '', d).split('/')[0].lower().removeprefix('www.') for d in _as_list(inp.get('domains'))]
         if not queries and not advertiser_ids and not domains:
-            raise ValueError('Provide at least one of: searchQueries, advertiserIds, advertiserUrls, domains.')
+            message = ('Input problem: provide at least one of searchQueries, advertiserIds, advertiserUrls, domains. '
+                       'Nothing was charged.')
+            Actor.log.error(message)
+            await Actor.set_status_message(message, is_terminal=True)
+            return
 
         s = Settings(inp)
         max_advertisers = int(inp.get('maxAdvertisersPerQuery') or 1)
@@ -262,6 +350,7 @@ async def main() -> None:
                 proxy_factory = proxy_config.new_url
                 Actor.log.info('Using proxy')
 
+        monitor = Monitor(await Actor.open_key_value_store(name=s.history_store_name)) if s.only_new else None
         budget = Budget()
         totals = {'advertisers': 0, 'ads': 0, 'adTexts': 0, 'failed': 0}
         seen_advertisers: set[str] = set()
@@ -322,7 +411,12 @@ async def main() -> None:
                         if await budget.charge(EVENT_ADVERTISER, 1):
                             await Actor.push_data(profile)
                             totals['advertisers'] += 1
-                    totals['ads'] += await collect_ads(api, budget, s, totals, advertiser_id=advertiser_id, label=name_hint or advertiser_id)
+                    if monitor:
+                        totals['ads'] += await monitor.run_target(
+                            api, budget, s, totals, kind='advertiser', ident=advertiser_id,
+                            name=name_hint or advertiser_id, advertiser_id=advertiser_id)
+                    else:
+                        totals['ads'] += await collect_ads(api, budget, s, totals, advertiser_id=advertiser_id, label=name_hint or advertiser_id)
                 except Blocked as exc:
                     Actor.log.error(str(exc))
                     totals['failed'] += 1
@@ -335,7 +429,11 @@ async def main() -> None:
                 if budget.limit_reached:
                     break
                 try:
-                    totals['ads'] += await collect_ads(api, budget, s, totals, domain=domain, label=f'domain {domain}')
+                    if monitor:
+                        totals['ads'] += await monitor.run_target(
+                            api, budget, s, totals, kind='domain', ident=domain, name=f'domain {domain}', domain=domain)
+                    else:
+                        totals['ads'] += await collect_ads(api, budget, s, totals, domain=domain, label=f'domain {domain}')
                 except Blocked as exc:
                     Actor.log.error(str(exc))
                     totals['failed'] += 1

@@ -7,7 +7,7 @@
         "searchQueries": {
             "title": "Advertiser names or domains to search",
             "type": "array",
-            "description": "Free-text searches, exactly like the search box on adstransparency.google.com. Brand names (`Nike`) or domains (`nike.com`). The best-matching advertisers are scraped (see *Max advertisers per query*).",
+            "description": "List of free-text advertiser searches as on adstransparency.google.com, e.g. [\"Shopify\", \"nike.com\"]. The best matches are scraped (count set by maxAdvertisersPerQuery). Provide at least one of searchQueries, advertiserIds, advertiserUrls or domains.",
             "editor": "stringList",
             "prefill": [
                 "Shopify"
@@ -16,25 +16,25 @@
         "advertiserIds": {
             "title": "Advertiser IDs",
             "type": "array",
-            "description": "Advertiser IDs starting with `AR` (from Ads Transparency URLs like `/advertiser/AR12345678901234567890`). Scraped in addition to search results.",
+            "description": "Optional list of Google advertiser IDs starting with 'AR' followed by 20 digits, e.g. [\"AR01614014350098432001\"] (from /advertiser/AR... URLs). Scraped in addition to searchQueries.",
             "editor": "stringList"
         },
         "advertiserUrls": {
             "title": "Advertiser or creative URLs",
             "type": "array",
-            "description": "Full URLs copied from adstransparency.google.com, e.g. `https://adstransparency.google.com/advertiser/AR.../?region=US`.",
+            "description": "Optional list of full adstransparency.google.com URLs, e.g. [\"https://adstransparency.google.com/advertiser/AR01614014350098432001?region=US\"]. Advertiser or creative URLs; scraped in addition to the other inputs.",
             "editor": "stringList"
         },
         "domains": {
             "title": "Domains (all advertisers)",
             "type": "array",
-            "description": "Website domains, e.g. `nike.com`. Returns ads from ANY advertiser that link to this domain (Google's 'search by website' view). Uses *Max ads per advertiser* as the limit per domain.",
+            "description": "Optional list of website domains, e.g. [\"nike.com\"]. Returns ads from ANY advertiser linking to that domain (Google's search-by-website view), up to maxAdsPerAdvertiser per domain. Different from searchQueries, which finds advertisers by name.",
             "editor": "stringList"
         },
         "maxAdvertisersPerQuery": {
             "title": "Max advertisers per query",
             "type": "integer",
-            "description": "How many matching advertisers to scrape for each search query (best matches first).",
+            "description": "Integer 1-20 (default 1): how many best-matching advertisers to scrape for each searchQueries item. Does not affect advertiserIds, advertiserUrls or domains.",
             "default": 1,
             "minimum": 1,
             "maximum": 20
@@ -42,9 +42,9 @@
         "maxAdsPerAdvertiser": {
             "title": "Max ads per advertiser",
             "type": "integer",
-            "description": "Maximum number of ads (creatives) to collect per advertiser, newest first. 40 ads per page.",
+            "description": "Integer 1-100000 (default 100): max ads per advertiser (and per domain), newest first, fetched 40 per page. Each ad saved is a charged 'ad' event ($0.002); ad copy adds a second event. With onlyNewAds it limits how many newest ads are checked.",
             "default": 100,
-            "prefill": 50,
+            "prefill": 30,
             "minimum": 1,
             "maximum": 100000,
             "unit": "ads"
@@ -52,7 +52,7 @@
         "format": {
             "title": "Ad format",
             "type": "string",
-            "description": "Only return ads of this format.",
+            "description": "Enum ALL, TEXT, IMAGE or VIDEO (default ALL): only return ads of this format.",
             "editor": "select",
             "enum": [
                 "ALL",
@@ -71,27 +71,27 @@
         "regions": {
             "title": "Regions (country codes)",
             "type": "array",
-            "description": "Only ads shown in these countries, as ISO 3166-1 alpha-2 codes (`US`, `GB`, `DE`, `KR`...). Empty = anywhere.",
+            "description": "Optional list of ISO 3166-1 alpha-2 country codes, e.g. [\"US\", \"GB\", \"KR\"]: only ads shown in these countries. Empty list = all regions.",
             "editor": "stringList"
         },
         "startDate": {
             "title": "Shown after",
             "type": "string",
-            "description": "Only ads shown on or after this date (`YYYY-MM-DD`).",
+            "description": "Optional date string YYYY-MM-DD, e.g. \"2026-01-01\": only ads shown on or after this date. null = no limit.",
             "editor": "datepicker",
             "nullable": true
         },
         "endDate": {
             "title": "Shown before",
             "type": "string",
-            "description": "Only ads shown on or before this date (`YYYY-MM-DD`).",
+            "description": "Optional date string YYYY-MM-DD, e.g. \"2026-06-30\": only ads shown on or before this date. null = no limit.",
             "editor": "datepicker",
             "nullable": true
         },
         "topic": {
             "title": "Topic",
             "type": "string",
-            "description": "`POLITICAL` restricts to election/political ads (where Google provides that view).",
+            "description": "Enum ALL or POLITICAL (default ALL). POLITICAL restricts to election/political ads where Google provides that view.",
             "editor": "select",
             "enum": [
                 "ALL",
@@ -106,25 +106,38 @@
         "includeAdText": {
             "title": "Extract ad copy (text, links, images)",
             "type": "boolean",
-            "description": "Extract the ad copy for each ad. Text ads are published by Google only as screenshots, so their text is read with OCR (see next option); video ads yield the YouTube video ID and thumbnail. One or two extra requests per ad, charged as a separate event only when something is extracted.",
+            "description": "true (default) = also extract ad copy (headline, body, links, images; YouTube ID and thumbnail for videos). Text ads exist only as screenshots, so copy comes from OCR when ocrAdText is true. Adds 1-2 requests per ad and a separate 'ad-text' event ($0.003) charged only for ads where something was extracted. false = cheaper, metadata only.",
             "default": true
         },
         "ocrAdText": {
             "title": "OCR screenshot ads",
             "type": "boolean",
-            "description": "Read the text of ads that Google publishes only as rendered screenshots (most Search text ads) with Tesseract OCR. Adds ~1 s per ad.",
+            "description": "true (default) = read the text of screenshot-only ads (most Search text ads) with Tesseract OCR, about 1 s per ad. Only used when includeAdText is true. false skips OCR; those ads then have no copy and no ad-text charge.",
             "default": true
         },
         "includeAdvertiserInfo": {
             "title": "Include advertiser profile items",
             "type": "boolean",
-            "description": "Push one `type: \"advertiser\"` item per advertiser with name, ID, legal name, region and approximate ad count.",
+            "description": "true (default) = also output one item per advertiser with type \"advertiser\" (name, ID, legal name, region, approximate ad count). Charged as one 'advertiser' event ($0.003) each. Set false to return only ad rows.",
             "default": true
+        },
+        "onlyNewAds": {
+            "title": "Only new ads (monitor mode)",
+            "type": "boolean",
+            "description": "Monitor mode (default false). true = remember seen ad IDs per advertiser/domain in historyStoreName and output and charge only ads not seen before; first run returns everything. Also adds a free 'advertiser-summary' row per advertiser. Schedule weekly with the same input.",
+            "default": false
+        },
+        "historyStoreName": {
+            "title": "History store name",
+            "type": "string",
+            "description": "Name of the key-value store holding seen ad IDs for onlyNewAds, e.g. 'google-ads-monitor' (default). Use one name per monitoring project and the same name on every scheduled run. Ignored when onlyNewAds is false.",
+            "default": "google-ads-monitor",
+            "editor": "textfield"
         },
         "proxyConfiguration": {
             "title": "Proxy configuration",
             "type": "object",
-            "description": "Google shows a CAPTCHA wall after ~20 requests from one IP, so Apify Proxy (rotating datacenter IPs) is enabled by default. Keep it on unless you run very small jobs.",
+            "description": "Apify proxy settings object, default {\"useApifyProxy\": true} (rotating datacenter IPs). Google shows a CAPTCHA after ~20 requests from one IP, so keep it enabled except for tiny runs.",
             "editor": "proxy",
             "prefill": {
                 "useApifyProxy": true
@@ -133,12 +146,20 @@
                 "useApifyProxy": true
             }
         },
+        "adTextConcurrency": {
+            "title": "Ad text concurrency",
+            "type": "integer",
+            "description": "Integer 1-8 (default 4): how many ads fetch their preview/screenshot in parallel. Only speeds up CDN downloads; Google API calls stay sequential. Use 1 if many 'blocked' warnings appear.",
+            "default": 4,
+            "minimum": 1,
+            "maximum": 8,
+            "sectionCaption": "Advanced"
+        },
         "debug": {
             "title": "Debug logging",
             "type": "boolean",
-            "description": "Log raw responses for troubleshooting. Leave off.",
-            "default": false,
-            "sectionCaption": "Advanced"
+            "description": "Boolean (default false). true logs raw responses for troubleshooting; leave false.",
+            "default": false
         }
     }
 }

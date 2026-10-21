@@ -70,12 +70,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import random
 import re
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Awaitable, Callable, Iterable, Optional, Sequence
 from urllib.parse import quote
 
 import httpx
@@ -87,6 +88,7 @@ UA = (
 )
 JSON_PREFIX = ")]}'"
 TRENDING_RPC = "i0OFE"
+log = logging.getLogger("apify")
 
 GPROPS = {"", "web", "images", "news", "youtube", "froogle"}
 GEO_RESOLUTIONS = {"COUNTRY", "REGION", "CITY", "DMA"}
@@ -512,15 +514,33 @@ class GoogleTrends:
 # Async client (same surface, awaitable)
 # ----------------------------------------------------------------------------
 class AsyncGoogleTrends:
-    def __init__(self, **kwargs):
+    def __init__(self, *, new_proxy: Optional[Callable[[], Awaitable[Optional[str]]]] = None,
+                 max_rotations: int = 0, **kwargs):
+        """new_proxy/max_rotations: when a request still gets 429 after all retries,
+        swap to a fresh proxy URL (new client, new cookies) up to max_rotations times."""
         self.cfg = _Config(**kwargs)
-        self._client = httpx.AsyncClient(headers=self.cfg.headers(), proxy=self.cfg.proxy,
-                                         timeout=self.cfg.timeout, follow_redirects=True)
-        self._client.cookies.update(self.cfg.extra_cookies)
+        self._new_proxy, self._rotations_left = new_proxy, max_rotations
+        self._client = self._make_client()
         self._warm = False
         self._last_call = 0.0
         self._lock = asyncio.Lock()
         self._explore_cache: dict[str, tuple[dict, list[str]]] = {}
+
+    def _make_client(self) -> httpx.AsyncClient:
+        client = httpx.AsyncClient(headers=self.cfg.headers(), proxy=self.cfg.proxy,
+                                   timeout=self.cfg.timeout, follow_redirects=True)
+        client.cookies.update(self.cfg.extra_cookies)
+        return client
+
+    async def _rotate_proxy(self) -> bool:
+        if not self._new_proxy or self._rotations_left <= 0:
+            return False
+        self._rotations_left -= 1
+        self.cfg.proxy = await self._new_proxy()
+        await self._client.aclose()
+        self._client = self._make_client()
+        self._warm = False
+        return True
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -547,28 +567,37 @@ class AsyncGoogleTrends:
 
     async def _request(self, method: str, path: str, *, params=None, data=None, headers=None) -> httpx.Response:
         async with self._lock:  # serialize: Google Trends punishes concurrency on one IP
-            await self.warmup()
-            for attempt in range(self.cfg.max_retries + 1):
-                await self._throttle()
+            while True:
                 try:
-                    resp = await self._client.request(method, BASE + path, params=params, data=data, headers=headers)
-                except httpx.TransportError as e:
-                    if attempt >= self.cfg.max_retries:
-                        raise GoogleTrendsError(f"transport error: {e}") from e
-                    await asyncio.sleep(self.cfg.backoff(attempt, None))
-                    continue
-                if resp.status_code == 429:
-                    if attempt >= self.cfg.max_retries:
-                        break
-                    await asyncio.sleep(self.cfg.backoff(attempt, resp))
-                    await self.warmup(force=True)
-                    continue
-                if resp.status_code in (400, 401) and "widgetdata" in path:
-                    raise TokenError(f"{resp.status_code} on {path}: token/request mismatch or unsupported params")
-                if resp.status_code >= 400:
-                    raise GoogleTrendsError(f"HTTP {resp.status_code} on {path}: {resp.text[:200]}")
-                return resp
-            raise RateLimitError(f"429 on {path} after {self.cfg.max_retries} retries")
+                    return await self._request_once(method, path, params=params, data=data, headers=headers)
+                except RateLimitError:
+                    if not await self._rotate_proxy():
+                        raise
+                    log.warning("429 persisted on %s - switched to a new proxy session", path)
+
+    async def _request_once(self, method: str, path: str, *, params=None, data=None, headers=None) -> httpx.Response:
+        await self.warmup()
+        for attempt in range(self.cfg.max_retries + 1):
+            await self._throttle()
+            try:
+                resp = await self._client.request(method, BASE + path, params=params, data=data, headers=headers)
+            except httpx.TransportError as e:
+                if attempt >= self.cfg.max_retries:
+                    raise GoogleTrendsError(f"transport error: {e}") from e
+                await asyncio.sleep(self.cfg.backoff(attempt, None))
+                continue
+            if resp.status_code == 429:
+                if attempt >= self.cfg.max_retries:
+                    break
+                await asyncio.sleep(self.cfg.backoff(attempt, resp))
+                await self.warmup(force=True)
+                continue
+            if resp.status_code in (400, 401) and "widgetdata" in path:
+                raise TokenError(f"{resp.status_code} on {path}: token/request mismatch or unsupported params")
+            if resp.status_code >= 400:
+                raise GoogleTrendsError(f"HTTP {resp.status_code} on {path}: {resp.text[:200]}")
+            return resp
+        raise RateLimitError(f"429 on {path} after {self.cfg.max_retries} retries")
 
     async def _get_json(self, path: str, params: dict) -> Any:
         return parse_json((await self._request("GET", path, params={**self.cfg.base_params(), **params})).text)

@@ -10,10 +10,14 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Callable, Awaitable
 
-from httpx import AsyncClient, HTTPError
+from httpx import AsyncClient, HTTPError, Limits, Response
 
 BASE = 'https://adstransparency.google.com'
 RPC = BASE + '/anji/_/rpc/'
+# Preview scripts and screenshots are best-effort: keep a stalled CDN from eating the run budget.
+ASSET_TIMEOUT = 15
+# Tesseract is CPU-bound; more parallel OCRs than this only fight over the container's CPU share.
+OCR_CONCURRENCY = 2
 UA = (
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
@@ -79,6 +83,14 @@ class AdsTransparency:
         self.proxy_url_factory = proxy_url_factory
         self.log = log
         self._client: AsyncClient | None = None
+        # RPC calls hit Google's rate limit as one stream: a lock keeps them sequential (min_delay,
+        # IP rotation and the block/direct fallback all assume one caller) even when several ads
+        # are being enriched at once. Asset GETs (CDN) use their own client and run concurrently.
+        self._rpc_lock = asyncio.Lock()
+        self._asset_client: AsyncClient | None = None
+        self._ocr_sem = asyncio.Semaphore(OCR_CONCURRENCY)
+        # Set once Google has bounced every route; later RPC calls fail fast instead of retrying.
+        self._blocked: str | None = None
         self._last = 0.0
         self._calls_on_ip = 0
         # True while we bypass the proxy because Google is bouncing the whole proxy pool.
@@ -86,6 +98,9 @@ class AdsTransparency:
         # Google starts serving a CAPTCHA wall after roughly 20 cookieless RPC calls from one IP,
         # so with a rotating proxy we switch IPs well before that.
         self.rotate_every = 8
+        # Best-effort asset fetches (preview script, ad screenshot) - counted so a slow CDN
+        # shows up in the log instead of silently eating the run time.
+        self._asset_errors = 0
 
     async def _new_client(self) -> AsyncClient:
         proxy = None
@@ -95,11 +110,19 @@ class AdsTransparency:
 
     async def __aenter__(self) -> 'AdsTransparency':
         self._client = await self._new_client()
+        # Never rotated: closing it would kill asset GETs that are still in flight in other tasks.
+        proxy = await self.proxy_url_factory() if self.proxy_url_factory else None
+        self._asset_client = AsyncClient(
+            headers={'User-Agent': UA}, timeout=ASSET_TIMEOUT, follow_redirects=True, proxy=proxy,
+            limits=Limits(max_connections=16, max_keepalive_connections=8),
+        )
         return self
 
     async def __aexit__(self, *exc) -> None:
         if self._client:
             await self._client.aclose()
+        if self._asset_client:
+            await self._asset_client.aclose()
 
     async def _rotate(self, *, direct: bool | None = None) -> None:
         if direct is not None:
@@ -110,6 +133,16 @@ class AdsTransparency:
         self._calls_on_ip = 0
 
     async def rpc(self, method: str, payload: dict, *, retries: int = 4) -> dict:
+        async with self._rpc_lock:
+            if self._blocked:
+                raise Blocked(self._blocked)
+            try:
+                return await self._rpc(method, payload, retries=retries)
+            except Blocked as exc:
+                self._blocked = str(exc)
+                raise
+
+    async def _rpc(self, method: str, payload: dict, *, retries: int) -> dict:
         assert self._client is not None
         body = {'f.req': json.dumps(payload, separators=(',', ':'))}
         delay = 2.0
@@ -279,13 +312,22 @@ class AdsTransparency:
             'raw5': d.get('5'),
         }
 
+    async def _get_asset(self, url: str, kind: str, **headers: str) -> Response | None:
+        """GET a best-effort asset with a short timeout; failures are logged (rate-limited), never raised."""
+        assert self._asset_client is not None
+        try:
+            return await self._asset_client.get(url, headers=headers)
+        except HTTPError as exc:
+            self._asset_errors += 1
+            if self.log and (self._asset_errors <= 3 or self._asset_errors % 10 == 0):
+                self.log.warning(f'{kind} fetch failed ({self._asset_errors} so far): {exc!r} {url[:100]}')
+            return None
+
     # -- OCR of archived ad screenshots ----------------------------------------------------
     async def ocr_image(self, image_url: str) -> str | None:
         """Read the text of an archived ad screenshot (tpc.googlesyndication.com/archive/simgad/...)."""
-        assert self._client is not None
-        try:
-            r = await self._client.get(image_url, headers={'User-Agent': UA}, follow_redirects=True)
-        except HTTPError:
+        r = await self._get_asset(image_url, 'ad screenshot')
+        if r is None:
             return None
         if r.status_code != 200 or not r.content:
             return None
@@ -303,7 +345,8 @@ class AdsTransparency:
                 img = ImageOps.autocontrast(img)
                 return pytesseract.image_to_string(img, lang='eng', config='--psm 6')
 
-            text = await asyncio.to_thread(_run)
+            async with self._ocr_sem:
+                text = await asyncio.to_thread(_run)
         except Exception as exc:  # noqa: BLE001 - OCR is best-effort
             if self.log:
                 self.log.debug(f'OCR failed for {image_url}: {exc!r}')
@@ -329,12 +372,8 @@ class AdsTransparency:
           * insertPreviewHtmlContent(..., '<html...>')   -> text/image/responsive ads
           * insertPreviewImageContent(id, el, 'https://i.ytimg.com/vi/<id>/hqdefault.jpg', w, h) -> video ads
         """
-        assert self._client is not None
-        try:
-            r = await self._client.get(preview_url, headers={'User-Agent': UA, 'Referer': BASE + '/'}, follow_redirects=True)
-        except HTTPError:
-            return None
-        if r.status_code != 200:
+        r = await self._get_asset(preview_url, 'ad preview', Referer=BASE + '/')
+        if r is None or r.status_code != 200:
             return None
         js = r.text
         out: dict[str, Any] = {'adText': None, 'adLinks': [], 'adImages': [], 'youtubeVideoIds': [], 'videoThumbnailUrl': None}
