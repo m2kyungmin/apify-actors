@@ -1,0 +1,167 @@
+{
+  "name": "Google Ads Transparency: weekly new competitor ads to Slack",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "5b3cebb8-712f-5ff9-b037-bd88a44a1529",
+      "name": "Weekly Monday 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/kyungminlee~ads-transparency-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "timeout",
+              "value": "280"
+            },
+            {
+              "name": "maxTotalChargeUsd",
+              "value": "1"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({searchQueries:['Shopify','Wix'],maxAdvertisersPerQuery:1,maxAdsPerAdvertiser:50,format:'ALL',includeAdText:true,ocrAdText:true,includeAdvertiserInfo:true,onlyNewAds:true,historyStoreName:'n8n-ads-monitor'}) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "9c48c045-6562-5a58-8cbe-6bc499edac1c",
+      "name": "Apify: Google Ads Transparency",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Apify API token (Header Auth)"
+        }
+      },
+      "notes": "Calls the Apify API (run-sync-get-dataset-items). Needs a Header Auth credential: Name = Authorization, Value = Bearer <YOUR_APIFY_TOKEN>. Change maxTotalChargeUsd to cap spend per run."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Keep only newly seen ads (skip advertiser info/summary rows) and build one Slack message.\nconst ads = $input.all().map(i => i.json).filter(r => r.type === 'ad' && r.isNew === true);\nif (ads.length === 0) return [];   // nothing new -> workflow stops, no message\nconst MAX = 25;\nconst lines = ads.slice(0, MAX).map(a => {\n  const headline = (a.adText || '(image/video ad, no text)').replace(/\\s+/g, ' ').slice(0, 140);\n  return `• *${a.advertiserName}* [${a.format}] ${headline}\\n   first shown ${String(a.firstShown || '').slice(0, 10)} - <${a.url}|view ad>`;\n});\nconst more = ads.length > MAX ? `\\n…and ${ads.length - MAX} more new ads.` : '';\nreturn [{ json: { text: `:mag: *${ads.length} new Google ads from competitors this week*\\n` + lines.join('\\n') + more } }];"
+      },
+      "id": "02b6a05c-0726-5408-8b0f-c15a57e8d140",
+      "name": "Format Slack message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "={{ $json.text }}",
+        "otherOptions": {
+          "mrkdwn": true
+        }
+      },
+      "id": "eed14932-1c28-58a4-b043-d6aee7630303",
+      "name": "Post to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        780,
+        200
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Setup: Header Auth credential for Apify (Authorization = Bearer <Apify token>); Slack credential + channel ID. Edit 'searchQueries' (advertiser names; or use domains / advertiserIds). First run records a baseline and posts every ad it finds (max 50 per advertiser); later runs post only ads that appeared since. Keep historyStoreName stable.",
+        "height": 200,
+        "width": 380
+      },
+      "id": "35145e7f-697a-5b25-b06a-a159a87bcbb0",
+      "name": "Setup notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -40
+      ]
+    }
+  ],
+  "connections": {
+    "Weekly Monday 09:00": {
+      "main": [
+        [
+          {
+            "node": "Apify: Google Ads Transparency",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify: Google Ads Transparency": {
+      "main": [
+        [
+          {
+            "node": "Format Slack message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Slack message": {
+      "main": [
+        [
+          {
+            "node": "Post to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

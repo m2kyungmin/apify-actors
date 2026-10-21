@@ -1,0 +1,176 @@
+{
+  "name": "Property Finder: weekly new listings under a price to Google Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "0d9ef880-0394-5605-ba3e-23d5766e3cdb",
+      "name": "Weekly Monday 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/kyungminlee~propertyfinder-listings-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "timeout",
+              "value": "280"
+            },
+            {
+              "name": "maxTotalChargeUsd",
+              "value": "1"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({country:'ae',offeringType:'buy',city:'Dubai',locations:['Dubai Marina'],propertyType:'apartments',bedrooms:['1','2'],maxPrice:2000000,maxListingsPerSearch:150,includeDescription:false,includeMarketData:false}) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "f073fe1f-5f46-518b-a149-5c3f2f8ada60",
+      "name": "Apify: Property Finder listings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Apify API token (Header Auth)"
+        }
+      },
+      "notes": "Calls the Apify API (run-sync-get-dataset-items). Needs a Header Auth credential: Name = Authorization, Value = Bearer <YOUR_APIFY_TOKEN>. Change maxTotalChargeUsd to cap spend per run."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// The actor has no 'new only' mode: keep listings first listed in the last N days.\nconst DAYS = 7;\nconst cutoff = Date.now() - DAYS * 24 * 3600 * 1000;\nconst today = new Date().toISOString().slice(0, 10);\nconst out = [];\nfor (const { json: r } of $input.all()) {\n  if (!r.listedAt || Date.parse(r.listedAt) < cutoff) continue;\n  out.push({ json: {\n    runDate: today,\n    listedAt: String(r.listedAt).slice(0, 10),\n    title: r.title,\n    price: r.price,\n    currency: r.currency,\n    propertyType: r.propertyType,\n    bedrooms: r.bedrooms,\n    bathrooms: r.bathrooms,\n    sizeSqft: r.sizeSqft,\n    community: r.community,\n    building: r.building,\n    furnishing: r.furnishing,\n    completionStatus: r.completionStatus,\n    brokerName: r.brokerName,\n    listingId: r.listingId,\n    url: r.url,\n  }});\n}\nout.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));\nreturn out;"
+      },
+      "id": "77943d19-dc54-5f36-b57f-1e3d8e001b90",
+      "name": "Keep listings from last 7 days",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "45718569-83a6-53ec-8111-e90bddba9698",
+      "name": "Append to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        780,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "Create a sheet with a header row matching these columns: runDate, listedAt, title, price, currency, propertyType, bedrooms, bathrooms, sizeSqft, community, building, furnishing, completionStatus, brokerName, listingId, url"
+    },
+    {
+      "parameters": {
+        "content": "Setup: Header Auth credential for Apify (Authorization = Bearer <Apify token>); Google Sheets credential + Sheet ID with a header row (see node notes). Edit city/locations/bedrooms/maxPrice (AED for country ae). Each run is charged for every listing scraped (up to maxListingsPerSearch); the filter keeps only listings first listed in the last 7 days. Optional: add a dedupe on listingId in Sheets.",
+        "height": 200,
+        "width": 380
+      },
+      "id": "35145e7f-697a-5b25-b06a-a159a87bcbb0",
+      "name": "Setup notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -40
+      ]
+    }
+  ],
+  "connections": {
+    "Weekly Monday 08:00": {
+      "main": [
+        [
+          {
+            "node": "Apify: Property Finder listings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify: Property Finder listings": {
+      "main": [
+        [
+          {
+            "node": "Keep listings from last 7 days",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep listings from last 7 days": {
+      "main": [
+        [
+          {
+            "node": "Append to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

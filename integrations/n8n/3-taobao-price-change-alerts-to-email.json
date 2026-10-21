@@ -1,0 +1,163 @@
+{
+  "name": "Taobao: daily price-change alerts by email",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "47a8dd3a-68a4-560c-aa8d-1143c28cc09f",
+      "name": "Daily 07:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/kyungminlee~taobao-catalog-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "timeout",
+              "value": "280"
+            },
+            {
+              "name": "maxTotalChargeUsd",
+              "value": "1"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({keywords:['mechanical keyboard','wireless earbuds'],translateKeywords:true,maxItemsPerQuery:100,convertPricesTo:'USD',trackPriceChanges:true,onlyNewOrChangedPrices:true,priceHistoryStoreName:'n8n-taobao-price-watch'}) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "baaab4f5-f41a-5f1d-afa0-19789d2bd170",
+      "name": "Apify: Taobao catalog",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Apify API token (Header Auth)"
+        }
+      },
+      "notes": "Calls the Apify API (run-sync-get-dataset-items). Needs a Header Auth credential: Name = Authorization, Value = Bearer <YOUR_APIFY_TOKEN>. Change maxTotalChargeUsd to cap spend per run."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Only price changes (not brand-new items) of at least 5%.\nconst MIN_PCT = 5;\nconst rows = $input.all().map(i => i.json).filter(r => r.priceStatus === 'changed' && Math.abs(r.priceChangePct ?? 0) >= MIN_PCT);\nif (rows.length === 0) return [];\nrows.sort((a, b) => Math.abs(b.priceChangePct) - Math.abs(a.priceChangePct));\nconst esc = s => String(s ?? '').replace(/[&<>\"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;' }[c]));\nconst tr = rows.slice(0, 50).map(r => {\n  const arrow = r.priceChange < 0 ? '&#9660;' : '&#9650;';\n  return `<tr><td>${esc(r.titleEn || r.title)}</td><td>${esc(r.shopName)}</td>` +\n    `<td align=\"right\">${r.previousPrice} &rarr; ${r.price} CNY</td>` +\n    `<td align=\"right\">${arrow} ${r.priceChangePct}%</td>` +\n    `<td>${r.priceConverted ?? ''} ${esc(r.convertedCurrency)}</td><td><a href=\"${esc(r.url)}\">open</a></td></tr>`;\n}).join('');\nconst html = `<h3>${rows.length} Taobao price changes (&ge; ${MIN_PCT}%)</h3>` +\n  `<table border=\"1\" cellpadding=\"4\" cellspacing=\"0\"><tr><th>Product</th><th>Shop</th><th>Price (CNY)</th><th>Change</th><th>Now</th><th>Link</th></tr>${tr}</table>`;\nreturn [{ json: { subject: `Taobao price alerts: ${rows.length} products changed`, html } }];"
+      },
+      "id": "0aaeb319-cd24-5271-9e4a-2a91d0fb3ff0",
+      "name": "Build price-change email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@example.com",
+        "toEmail": "you@example.com",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "b746ae56-0938-59c1-92ec-01dd2dc9a2ca",
+      "name": "Send email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        780,
+        200
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Setup: Header Auth credential for Apify (Authorization = Bearer <Apify token>); SMTP credential and from/to addresses. To use Slack instead, replace the Send email node with a Slack node and map text to a plain-text version. Edit keywords, or use categoryIds / shopIds. First run saves a baseline (all items 'new', no email). Keep priceHistoryStoreName stable.",
+        "height": 200,
+        "width": 380
+      },
+      "id": "35145e7f-697a-5b25-b06a-a159a87bcbb0",
+      "name": "Setup notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -40
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 07:00": {
+      "main": [
+        [
+          {
+            "node": "Apify: Taobao catalog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify: Taobao catalog": {
+      "main": [
+        [
+          {
+            "node": "Build price-change email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build price-change email": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

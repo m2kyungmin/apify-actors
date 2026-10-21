@@ -15,6 +15,20 @@ Source code of the pay-per-event web scrapers and tools published on the [Apify 
 | [Threads Scraper: Profiles, Posts, Replies & Search](./threads-scraper/) | [apify.com/kyungminlee/threads-scraper](https://apify.com/kyungminlee/threads-scraper) |
 | [AI Search Visibility Audit: ChatGPT & Perplexity](./ai-search-visibility-audit/) | [apify.com/kyungminlee/ai-search-visibility-audit](https://apify.com/kyungminlee/ai-search-visibility-audit) |
 
+## Automation templates (n8n / Make)
+
+Ready-to-import [n8n](https://n8n.io) workflows in [`integrations/`](./integrations/) run these Actors on a schedule and send only what changed:
+
+| Template | What it does |
+|---|---|
+| [Naver Shopping ranks → Google Sheets](./integrations/n8n/1-naver-shopping-rank-price-to-google-sheets.json) | Daily keyword rank and price changes on Naver Shopping |
+| [New competitor Google ads → Slack](./integrations/n8n/2-google-ads-new-competitor-ads-to-slack.json) | Weekly alert with ads your competitors started running |
+| [Taobao price changes → email](./integrations/n8n/3-taobao-price-change-alerts-to-email.json) | Daily price drops/rises for products you track |
+| [SEC filings watchlist → Slack](./integrations/n8n/4-sec-edgar-new-filings-watchlist-to-slack.json) | New 10-K/10-Q/8-K filings of your watchlist |
+| [Property Finder new listings → Google Sheets](./integrations/n8n/5-propertyfinder-new-listings-to-google-sheets.json) | Weekly new UAE listings under your price |
+
+Setup, credentials and monthly cost estimates (typically $0.02–$2 per template) are in [integrations/README.md](./integrations/README.md); a Make.com equivalent is described there too.
+
 ## Running locally
 
 Each folder is a standalone Actor:
