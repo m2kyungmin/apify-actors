@@ -25,12 +25,21 @@ async def main() -> None:
         website = str(inp.get('websiteUrl') or '').strip()
         brand = str(inp.get('brandName') or '').strip()
         if not website or not brand:
-            raise ValueError('websiteUrl and brandName are required.')
+            message = 'Input problem: websiteUrl and brandName are required. Nothing was charged.'
+            Actor.log.error(message)
+            await Actor.set_status_message(message, is_terminal=True)
+            return
         aliases = _strings(inp.get('brandAliases'))
         competitors = _strings(inp.get('competitors'))[:10]
         description = str(inp.get('businessDescription') or '').strip()
-        prompt_count = max(5, min(60, int(inp.get('promptCount') or 30)))
-        samples = max(1, min(5, int(inp.get('samplesPerPrompt') or 3)))
+        try:
+            prompt_count = max(5, min(60, int(inp.get('promptCount') or 30)))
+            samples = max(1, min(5, int(inp.get('samplesPerPrompt') or 3)))
+        except (ValueError, TypeError):
+            message = 'Input problem: promptCount and samplesPerPrompt must be whole numbers. Nothing was charged.'
+            Actor.log.error(message)
+            await Actor.set_status_message(message, is_terminal=True)
+            return
         engines = [e for e in _strings(inp.get('engines')) if e in ('openai', 'perplexity', 'gemini')] or ['openai']
         keys = {
             'openai': str(inp.get('openaiApiKey') or '').strip(),
@@ -49,7 +58,11 @@ async def main() -> None:
             except Exception:  # noqa: BLE001
                 allowed = None
             if allowed is not None and allowed < 1:
-                raise RuntimeError('The run\'s maximum charge is below the price of one audit; raise the limit and retry.')
+                message = ('Input problem: the run\'s maximum charge is below the price of one audit; raise the limit and retry. '
+                           'Nothing was charged.')
+                Actor.log.error(message)
+                await Actor.set_status_message(message, is_terminal=True)
+                return
 
         def progress(state: dict[str, Any]) -> None:
             Actor.log.info(f"Sampling {state['done']}/{state['total']} answers")

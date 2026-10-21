@@ -46,7 +46,11 @@ async def main() -> None:
         inp = await Actor.get_input() or {}
         raw_usernames, raw_videos = _strings(inp.get('usernames')), _strings(inp.get('videoUrls'))
         if not raw_usernames and not raw_videos:
-            raise ValueError('Provide at least one username or public TikTok video URL.')
+            message = 'Input problem: provide at least one username or public TikTok video URL. Nothing was charged.'
+            Actor.log.error(message)
+            await Actor.set_status_message(message, is_terminal=True)
+            await Actor.set_value('SUMMARY', {'results': 0, 'failed': 0, 'inputProblems': ['No username or video URL.']})
+            return
         # One malformed entry must not sink the whole list: skip it with a warning and keep the rest.
         reasons: Counter[str] = Counter()
         usernames: list[str] = []
@@ -59,7 +63,13 @@ async def main() -> None:
                     reasons['invalid_input'] += 1
                     Actor.log.warning(f'Skipping {value!r}: {exc}')
 
-        requested = max(1, min(100, int(inp.get('maxItems') or 20)))
+        try:
+            requested = max(1, min(100, int(inp.get('maxItems') or 20)))
+        except (ValueError, TypeError):
+            message = 'Input problem: maxItems must be a whole number. Nothing was charged.'
+            Actor.log.error(message)
+            await Actor.set_status_message(message, is_terminal=True)
+            return
         budget = Budget()
         available = budget.available(requested)
         if available <= 0:

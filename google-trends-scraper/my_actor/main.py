@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from typing import Any
 
 from apify import Actor
@@ -130,7 +131,17 @@ async def main() -> None:
         keywords = _as_list(inp.get('keywords'))
         trending = bool(inp.get('trendingNow', False))
         if not keywords and not trending:
-            raise ValueError('Provide at least one keyword, or enable "Trending Now list".')
+            message = 'Input problem: provide at least one keyword, or enable "Trending Now list". Nothing was charged.'
+            Actor.log.error(message)
+            await Actor.set_status_message(message, is_terminal=True)
+            return
+        try:
+            int(inp.get('category') or 0)
+        except (ValueError, TypeError):
+            message = 'Input problem: category must be a whole number (Google Trends category ID). Nothing was charged.'
+            Actor.log.error(message)
+            await Actor.set_status_message(message, is_terminal=True)
+            return
 
         gprop = (inp.get('searchType') or 'web').lower()
         opts = {
@@ -151,6 +162,7 @@ async def main() -> None:
         language = (inp.get('language') or 'en-US').strip()
 
         proxy_url = None
+        new_proxy = None
         proxy_input = inp.get('proxyConfiguration') or {}
         if proxy_input.get('useApifyProxy') or proxy_input.get('proxyUrls'):
             proxy_config = await Actor.create_proxy_configuration(actor_proxy_input=proxy_input)
@@ -158,11 +170,15 @@ async def main() -> None:
                 proxy_url = await proxy_config.new_url()
                 Actor.log.info('Using proxy')
 
+                async def new_proxy() -> str | None:
+                    return await proxy_config.new_url(session_id=f'trends{random.randrange(10**9)}')
+
         budget = Budget()
         totals = {'keywords': 0, 'rows': 0, 'failed': 0}
         groups: list[list[str]] = [keywords[i:i + 5] for i in range(0, len(keywords), 5)] if compare else [[k] for k in keywords]
 
-        async with AsyncGoogleTrends(hl=language, tz=0, proxy=proxy_url, min_delay=2.0, max_retries=3) as gt:
+        async with AsyncGoogleTrends(hl=language, tz=0, proxy=proxy_url, min_delay=2.0, max_retries=3,
+                                     new_proxy=new_proxy, max_rotations=3 if new_proxy else 0) as gt:
             for group in groups:
                 if budget.limit_reached:
                     Actor.log.warning('Maximum charge limit reached - stopping')

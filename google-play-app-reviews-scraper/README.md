@@ -1,7 +1,3 @@
-# Google Play Reviews Scraper: Ratings & Metadata
-
-> **Run it on Apify Store:** https://apify.com/kyungminlee/google-play-app-reviews-scraper — pay per result, no setup. This folder is the Actor's source code (Python, `httpx`, Apify SDK).
-
 ## What does Google Play Reviews Scraper do?
 
 **Google Play Reviews Scraper** collects the newest public reviews and the public store listing of any Android app from its package ID (for example `com.instagram.android`) — no Google account, Play Console access or browser. Review text is public, but reviewer names and avatars are deliberately not collected and obvious contact details are masked.

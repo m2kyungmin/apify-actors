@@ -1,7 +1,3 @@
-# TikTok Video Stats Scraper: Views, Likes by URL
-
-> **Run it on Apify Store:** https://apify.com/kyungminlee/tiktok-profile-video-scraper — pay per result, no setup. This folder is the Actor's source code (Python, `httpx`, Apify SDK).
-
 ## What does TikTok Video Stats Scraper do?
 
 **TikTok Video Stats Scraper** returns the numbers behind any public TikTok video you already know the URL of — views, likes, comments, shares and saves — plus the public statistics of any profile (followers, following, total likes, video count). It reads TikTok's public pages without login, cookies or a browser, so a batch of campaign or competitor URLs is measured in seconds and nothing of yours is at risk. It does not crawl a profile's entire feed; give it video URLs.

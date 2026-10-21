@@ -1,25 +1,25 @@
 {
-  "$schema": "https://apify.com/schemas/v1/actor.ide.json",
-  "actorSpecification": 1,
-  "name": "ads-transparency-scraper",
-  "title": "Google Ads Transparency Center Scraper: Ad Library",
-  "description": "Scrape the Google Ads Transparency Center, Google's ad library: every ad a brand, domain or advertiser ID runs, with ad copy (OCR for image-only text ads), format, image/video, regions, first/last shown and days active. No login or browser. From $2 per 1,000 ads. JSON/CSV, API, schedules.",
-  "version": "0.1",
-  "buildTag": "latest",
-  "meta": {
-    "templateId": "python-start",
-    "generatedBy": "Claude Code with Claude Opus 5.5"
-  },
-  "inputSchema": "./input_schema.json",
-  "outputSchema": "./output_schema.json",
-  "storages": {
-    "dataset": "./dataset_schema.json"
-  },
-  "dockerfile": "../Dockerfile",
-  "usesStandbyMode": false,
-  "defaultRunOptions": {
-    "build": "latest",
-    "memoryMbytes": 2048,
-    "timeoutSecs": 3600
-  }
+    "$schema": "https://apify.com/schemas/v1/actor.ide.json",
+    "actorSpecification": 1,
+    "name": "ads-transparency-scraper",
+    "title": "Google Ads Transparency Center Scraper: Ad Library",
+    "description": "Returns ads from Google Ads Transparency Center (Google's ad library) by brand, domain or advertiser ID: ad copy (OCR), format, media, regions, first/last shown. No login. Example: searchQueries=[\"Shopify\"]. Pay per event: $0.002 per ad, $0.003 per ad copy, $0.003 per advertiser.",
+    "version": "0.1",
+    "buildTag": "latest",
+    "meta": {
+        "templateId": "python-start",
+        "generatedBy": "Claude Code with Claude Opus 5.5"
+    },
+    "inputSchema": "./input_schema.json",
+    "outputSchema": "./output_schema.json",
+    "storages": {
+        "dataset": "./dataset_schema.json"
+    },
+    "dockerfile": "../Dockerfile",
+    "usesStandbyMode": false,
+    "defaultRunOptions": {
+        "build": "latest",
+        "memoryMbytes": 2048,
+        "timeoutSecs": 3600
+    }
 }

@@ -48,11 +48,20 @@ async def main() -> None:
         inp = await Actor.get_input() or {}
         app_ids = _strings(inp.get('appIds'))
         if not app_ids:
-            raise ValueError('Provide at least one Android package ID in appIds.')
+            message = 'Input problem: provide at least one Android package ID in appIds. Nothing was charged.'
+            Actor.log.error(message)
+            await Actor.set_status_message(message, is_terminal=True)
+            return
 
         country = str(inp.get('country') or 'US').upper()
         language = str(inp.get('language') or 'en').lower()
-        max_reviews = max(0, min(200, int(inp.get('maxReviewsPerApp', 20))))
+        try:
+            max_reviews = max(0, min(200, int(inp.get('maxReviewsPerApp', 20))))
+        except (ValueError, TypeError):
+            message = 'Input problem: maxReviewsPerApp must be a whole number. Nothing was charged.'
+            Actor.log.error(message)
+            await Actor.set_status_message(message, is_terminal=True)
+            return
         budget = Budget()
 
         proxy_input = inp.get('proxyConfiguration') or {'useApifyProxy': True}

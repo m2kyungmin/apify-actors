@@ -1,16 +1,20 @@
-# Google Ads Transparency Center Scraper: Ad Library
-
-> **Run it on Apify Store:** https://apify.com/kyungminlee/ads-transparency-scraper — pay per result, no setup. This folder is the Actor's source code (Python, `httpx`, Apify SDK).
-
 ## What does Google Ads Transparency Center Scraper do?
 
-**Google Ads Transparency Center Scraper** shows you **every ad a competitor runs on Google** — Search, YouTube, Display, Shopping and Maps — straight from Google's public ad library, the [Ads Transparency Center](https://adstransparency.google.com). Type a brand name or a domain (or paste advertiser IDs/URLs) and get each ad as a clean row: **the ad copy**, format, image or video, the countries it ran in, **first and last shown dates and how many days it has been running**. No login, no browser, no manual scrolling through cards.
+**Built for agencies, in-house marketers and ad-intelligence teams who monitor competitors' Google and YouTube ads.** Get every Search, YouTube, Display, Shopping and Maps ad a competitor runs, with the **ad copy as text** (Search text ads are published only as screenshots, so this Actor reads them with OCR), format, image or video, countries, first and last shown dates and days active. It uses Google's public [Ads Transparency Center](https://adstransparency.google.com): no login, no browser, unofficial and not affiliated with Google.
 
-The Transparency Center publishes Search text ads only as screenshots. This Actor **reads them with OCR**, so you get the headline and description as text you can search, compare and feed into a spreadsheet or LLM — the part you cannot copy from the site itself.
+**Typical uses:** new-campaign alerts on competitors, ad copy research for your own headlines, weekly agency reports, and brand-protection checks.
 
-**What it costs:** from **$2 per 1,000 ads**, plus $3 per 1,000 for extracted ad copy. Checking one competitor's 100 newest ads with copy costs about **$0.50**. You only pay for ads actually delivered.
+**Monitor mode (`onlyNewAds`):** turn it on and schedule the Actor weekly. The first run records every ad it sees; each later run outputs and charges **only ads that appeared since the last run**, flagged `isNew: true`, plus a free `advertiser-summary` row per competitor (new ads, total seen, latest first-shown date).
 
-Each ad is one record: `adId`, `advertiserId`, `advertiserName`, `format` (text, image, video), `adText` / `ocrText`, `imageUrl`, `videoId`, `regions`, `firstShown`, `lastShown`, `daysShown`, `topic` and `detailUrl`; advertiser records add legal name, verification and domain. Export JSON/CSV/Excel, call the API, or schedule weekly runs and pipe new creatives to Slack, Sheets or your ad-intelligence dashboard.
+**What it costs:** $2 per 1,000 ads, plus $3 per 1,000 for extracted ad copy. Example: **monitoring 10 competitors weekly with about 50 new ads each is roughly $1 per week** (500 ads with copy ≈ $2.50 before plan discounts is the upper bound; most weeks fewer ads are new). A one-off pull of one competitor's 100 newest ads with copy is about $0.50. You only pay for ads actually delivered.
+
+### Quick start
+
+1. Enter competitor brand names or domains in **Advertiser names or domains to search** (or advertiser IDs or URLs).
+2. Switch on **Only new ads (monitor mode)** and run once; this records the baseline.
+3. Open **Schedules**, create a weekly schedule with the same input, and send the dataset to Slack, Sheets or email via integrations.
+
+Each ad is one record: `adId`, `advertiserId`, `advertiserName`, `format`, `adText`, `imageUrl`, `videoId`, `regions`, `firstShown`, `lastShown`, `daysShown` and `detailUrl`; advertiser records add legal name, verification and domain. Export JSON, CSV or Excel, or call the API.
 
 ## Why use Google Ads Transparency Center Scraper?
 
@@ -47,6 +51,8 @@ The best-matching advertiser for each query is chosen automatically (verified ad
 | `ocrAdText` | boolean | `true` | Read text ads (published only as screenshots) with OCR |
 | `includeAdvertiserInfo` | boolean | `true` | Add one advertiser profile item per advertiser |
 | `proxyConfiguration` | object | Apify Proxy on | Rotating IPs (recommended) |
+| `onlyNewAds` | boolean | `false` | Monitor mode: output and charge only ads not seen in earlier runs; adds a free `advertiser-summary` row |
+| `historyStoreName` | string | `google-ads-monitor` | Named key-value store holding seen ad IDs (use one name per monitoring project) |
 | `adTextConcurrency` | integer | `4` | Ads whose preview script / screenshot are downloaded at the same time (1–8); Google API calls stay sequential |
 
 Example:
@@ -60,6 +66,25 @@ Example:
   "startDate": "2026-01-01"
 }
 ```
+
+## Quick API example
+
+Minimal input (also the prefill style used in the Apify Console):
+
+```json
+{"searchQueries": ["Shopify"], "maxAdsPerAdvertiser": 30}
+```
+
+Run synchronously and get the dataset items in one call (replace `<TOKEN>` with your Apify API token):
+
+```
+POST https://api.apify.com/v2/acts/kyungminlee~ads-transparency-scraper/run-sync-get-dataset-items?token=<TOKEN>
+Content-Type: application/json
+
+{"searchQueries": ["Shopify"], "maxAdsPerAdvertiser": 30}
+```
+
+AI agents using the Apify MCP server can call this Actor as `kyungminlee/ads-transparency-scraper` with the same JSON input.
 
 ## Output
 
@@ -102,6 +127,8 @@ You can download the dataset in various formats such as JSON, HTML, CSV, or Exce
 | `adLinks`, `adImages` | Landing-page links and creative images found in HTML previews |
 | `youtubeVideoIds`, `youtubeUrls`, `videoThumbnailUrl` | The YouTube video behind a video ad |
 | `regions` | Countries where the ad was shown (when available) |
+| `isNew`, `firstSeenByMonitor` | Monitor mode only: `true` and the time the monitor first saw the ad |
+| `recordType: "advertiser-summary"` | Monitor mode only, free: `newAds`, `totalSeen`, `latestFirstShown`, `firstRun` per advertiser or domain |
 
 ## How much does it cost to scrape Google Ads Transparency Center?
 
@@ -117,11 +144,14 @@ Examples: one competitor's 100 newest ads with copy ≈ **$0.50**; 20 competitor
 
 ## Tips
 
+- **No-code automation:** a ready-to-import [n8n workflow](https://github.com/m2kyungmin/apify-actors/blob/main/integrations/n8n/2-google-ads-new-competitor-ads-to-slack.json) runs this Actor on a schedule and sends a weekly Slack alert with competitors' new ads ([all templates](https://github.com/m2kyungmin/apify-actors/tree/main/integrations)).
+
 - Search by **domain** (`brand.com`) when a brand name is ambiguous; the domain suggestions are logged for every query.
 - Large advertisers (tens of thousands of ads) are returned newest first, so a small `maxAdsPerAdvertiser` gives you their current campaigns.
-- Schedule a weekly run with `startDate` set to last week to track only new ads.
+- To track new ads, turn on `onlyNewAds` and schedule a weekly run. In monitor mode `maxAdsPerAdvertiser` limits how many of the newest ads are checked, and scanning stops at the first page with nothing new. Keep the same `historyStoreName` for the same competitor list; delete the store to reset the baseline.
 - Google shows a CAPTCHA wall after a few dozen requests from one IP. Apify Proxy is on by default and IPs are rotated automatically.
 - Ad copy is fetched for several ads at once (`adTextConcurrency`, default 4), but every call to Google's own API is still made one at a time with a short delay, so the extra speed does not raise the block risk. Set it to `1` if you keep seeing `blocked (HTTP 302)` warnings.
+- **Also check Bing and Snapchat ads:** the same competitor's search ads on Bing are in [Microsoft Ads Library Scraper](https://apify.com/kyungminlee/microsoft-ads-library-scraper), and their Snapchat ads (with EU impressions per country) are in [Snapchat Ads Library Scraper](https://apify.com/kyungminlee/snapchat-ads-library-scraper).
 
 ## FAQ and disclaimers
 

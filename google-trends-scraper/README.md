@@ -1,7 +1,3 @@
-# Google Trends Scraper: Trending Now & Regions
-
-> **Run it on Apify Store:** https://apify.com/kyungminlee/google-trends-scraper — pay per result, no setup. This folder is the Actor's source code (Python, `httpx`, Apify SDK).
-
 ## What does Google Trends Scraper do?
 
 **Google Trends Scraper** replaces the broken `pytrends` workflow: it talks to Google Trends' own data endpoints, so a keyword with a year of history returns in about 15 seconds with no browser, Google account or CAPTCHA, and Apify Proxy rotation absorbs Google's rate limits. It also exposes the **Trending Now** feed for any country, which has no official API at all.
