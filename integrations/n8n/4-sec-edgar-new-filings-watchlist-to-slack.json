@@ -1,0 +1,167 @@
+{
+  "name": "SEC EDGAR: daily new filings for a watchlist to Slack",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 13 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "a445fc4b-a0bb-58b5-a249-c4f017cc240e",
+      "name": "Daily 13:00 (weekdays)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/kyungminlee~sec-edgar-filings-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "timeout",
+              "value": "280"
+            },
+            {
+              "name": "maxTotalChargeUsd",
+              "value": "1"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({companies:['AAPL','MSFT','NVDA','TSLA','AMZN'],formTypes:['8-K','10-K','10-Q'],includeAmendments:false,dateFrom:'30 days',maxFilingsPerCompany:20,maxFilings:100,onlyNewFilings:true,stateStoreName:'n8n-sec-watchlist'}) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "256bf9ee-a50e-5486-8a4d-b06e048a327a",
+      "name": "Apify: SEC EDGAR filings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Apify API token (Header Auth)"
+        }
+      },
+      "notes": "Calls the Apify API (run-sync-get-dataset-items). Needs a Header Auth credential: Name = Authorization, Value = Bearer <YOUR_APIFY_TOKEN>. Change maxTotalChargeUsd to cap spend per run."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// New filings only (skip any non-filing rows) -> one Slack message.\nconst f = $input.all().map(i => i.json).filter(r => (r.recordType || 'filing') === 'filing' && r.isNew !== false);\nif (f.length === 0) return [];\nconst MAX = 30;\nf.sort((a, b) => String(b.filingDate).localeCompare(String(a.filingDate)));\nconst lines = f.slice(0, MAX).map(r => {\n  const items = (r.itemTitles && r.itemTitles.length) ? ' - ' + r.itemTitles.slice(0, 3).join('; ') : '';\n  return `• *${r.ticker || r.companyName}* ${r.form} (${r.filingDate})${items} <${r.documentUrl || r.filingIndexUrl}|filing>`;\n});\nconst more = f.length > MAX ? `\\n…and ${f.length - MAX} more.` : '';\nreturn [{ json: { text: `:page_facing_up: *${f.length} new SEC filings on your watchlist*\\n` + lines.join('\\n') + more } }];"
+      },
+      "id": "02b6a05c-0726-5408-8b0f-c15a57e8d140",
+      "name": "Format Slack message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "={{ $json.text }}",
+        "otherOptions": {
+          "mrkdwn": true
+        }
+      },
+      "id": "eed14932-1c28-58a4-b043-d6aee7630303",
+      "name": "Post to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        780,
+        200
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Setup: Header Auth credential for Apify (Authorization = Bearer <Apify token>); Slack credential + channel ID. Edit 'companies' (tickers, names or CIKs) and 'formTypes' (e.g. 8-K items via items8K). First run posts the last 30 days as a baseline; later runs post only filings not delivered before. Insider Form 4 filings are not supported by the actor.",
+        "height": 200,
+        "width": 380
+      },
+      "id": "35145e7f-697a-5b25-b06a-a159a87bcbb0",
+      "name": "Setup notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -40
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 13:00 (weekdays)": {
+      "main": [
+        [
+          {
+            "node": "Apify: SEC EDGAR filings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify: SEC EDGAR filings": {
+      "main": [
+        [
+          {
+            "node": "Format Slack message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Slack message": {
+      "main": [
+        [
+          {
+            "node": "Post to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

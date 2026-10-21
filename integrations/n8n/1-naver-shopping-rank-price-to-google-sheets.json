@@ -1,0 +1,176 @@
+{
+  "name": "Naver Shopping: daily rank & price changes to Google Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "b2ca4157-a811-5556-bc1e-35bf1f2a974b",
+      "name": "Daily 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/kyungminlee~naver-shopping-search-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "timeout",
+              "value": "280"
+            },
+            {
+              "name": "maxTotalChargeUsd",
+              "value": "1"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({keywords:['무선 이어폰','캠핑 의자'],maxProductsPerKeyword:50,sortBy:'relevance',trackChanges:true,onlyChanged:true,historyStoreName:'n8n-naver-rank-watch'}) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "bc7bf9c7-209d-5118-8abe-59358d94f26f",
+      "name": "Apify: Naver Shopping search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Apify API token (Header Auth)"
+        }
+      },
+      "notes": "Calls the Apify API (run-sync-get-dataset-items). Needs a Header Auth credential: Name = Authorization, Value = Bearer <YOUR_APIFY_TOKEN>. Change maxTotalChargeUsd to cap spend per run."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Keep product rows only (summary rows are free metadata) and map to sheet columns.\nconst today = new Date().toISOString().slice(0, 10);\nconst out = [];\nfor (const { json: r } of $input.all()) {\n  if (r.recordType && r.recordType !== 'product') continue;\n  const changed = r.isNewInTop === true || (r.rankChange ?? 0) !== 0 || (r.priceChange ?? 0) !== 0;\n  // First run has no history (all change fields null): rows are written once as the baseline.\n  const baseline = r.previousRank == null && r.previousPrice == null && r.isNewInTop == null;\n  if (!changed && !baseline) continue;\n  out.push({ json: {\n    date: today,\n    keyword: r.keyword,\n    rank: r.rank,\n    previousRank: r.previousRank,\n    rankChange: r.rankChange,\n    price: r.price,\n    previousPrice: r.previousPrice,\n    priceChange: r.priceChange,\n    isNewInTop: r.isNewInTop,\n    title: r.title,\n    mallName: r.mallName,\n    productId: r.productId,\n    url: r.url,\n  }});\n}\nreturn out;"
+      },
+      "id": "bdc54ea8-4a4c-5b65-bd03-a4e360fe2393",
+      "name": "Keep changes & format rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "45718569-83a6-53ec-8111-e90bddba9698",
+      "name": "Append to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        780,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "Create a sheet with a header row matching these columns: date, keyword, rank, previousRank, rankChange, price, previousPrice, priceChange, isNewInTop, title, mallName, productId, url"
+    },
+    {
+      "parameters": {
+        "content": "Setup: 1) Create Header Auth credential (Authorization = Bearer <Apify token>) and select it on the Apify node. 2) Select your Google Sheets credential, paste the Sheet ID, create header row (see node notes). 3) Edit keywords in the Apify node. Keep options identical between runs; rank/price history is kept per keyword in the Apify key-value store 'n8n-naver-rank-watch'.",
+        "height": 200,
+        "width": 380
+      },
+      "id": "35145e7f-697a-5b25-b06a-a159a87bcbb0",
+      "name": "Setup notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -40
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 08:00": {
+      "main": [
+        [
+          {
+            "node": "Apify: Naver Shopping search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify: Naver Shopping search": {
+      "main": [
+        [
+          {
+            "node": "Keep changes & format rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep changes & format rows": {
+      "main": [
+        [
+          {
+            "node": "Append to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
